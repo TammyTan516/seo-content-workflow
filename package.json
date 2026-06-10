@@ -1,0 +1,14 @@
+{
+  "name": "seo-workflow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "workflow": "node scripts/seo_workflow.mjs",
+    "reset:row2": "node scripts/seo_workflow.mjs --reset-row=2",
+    "setup:key": "node scripts/setup_openai_key.mjs",
+    "test:ai": "node scripts/test_ai_connection.mjs",
+    "feishu:status": "npx -y @larksuite/cli auth status",
+    "feishu:config": "npx -y @larksuite/cli config init --new"
+  }
+}

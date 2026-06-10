@@ -1,0 +1,10 @@
+.env
+node_modules/
+.DS_Store
+tmp/
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.log

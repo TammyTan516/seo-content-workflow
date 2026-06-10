@@ -1,0 +1,96 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_title",
+    "seo_url",
+    "secondary_keywords",
+    "seo_title",
+    "suggested_slug",
+    "suggested_url",
+    "meta_description",
+    "primary_keyword",
+    "keywords",
+    "search_intent",
+    "target_audience",
+    "excerpt",
+    "recommended_cta",
+    "internal_link_suggestions",
+    "llm_summary",
+    "seo_revised_article",
+    "publish_format_output",
+    "faq_schema_jsonld",
+    "source_notes",
+    "section_breakdown",
+    "keyword_mapping",
+    "publish_checklist",
+    "validation_status",
+    "validation_issues"
+  ],
+  "properties": {
+    "source_title": { "type": "string" },
+    "seo_url": { "type": "string" },
+    "secondary_keywords": { "type": "string" },
+    "seo_title": { "type": "string" },
+    "suggested_slug": { "type": "string" },
+    "suggested_url": { "type": "string" },
+    "meta_description": { "type": "string" },
+    "primary_keyword": { "type": "string" },
+    "keywords": { "type": "string" },
+    "search_intent": { "type": "string" },
+    "target_audience": { "type": "string" },
+    "excerpt": { "type": "string" },
+    "recommended_cta": { "type": "string" },
+    "internal_link_suggestions": { "type": "string" },
+    "llm_summary": { "type": "string" },
+    "seo_revised_article": { "type": "string" },
+    "publish_format_output": { "type": "string" },
+    "faq_schema_jsonld": { "type": "string" },
+    "source_notes": { "type": "string" },
+    "section_breakdown": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["order", "section_type", "heading", "target_keywords", "purpose_notes"],
+        "properties": {
+          "order": { "type": "integer" },
+          "section_type": { "type": "string" },
+          "heading": { "type": "string" },
+          "target_keywords": { "type": "string" },
+          "purpose_notes": { "type": "string" }
+        }
+      }
+    },
+    "keyword_mapping": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["priority", "keyword", "keyword_role", "recommended_placement", "notes"],
+        "properties": {
+          "priority": { "type": "string" },
+          "keyword": { "type": "string" },
+          "keyword_role": { "type": "string" },
+          "recommended_placement": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "publish_checklist": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["checklist_item", "status", "owner_note"],
+        "properties": {
+          "checklist_item": { "type": "string" },
+          "status": { "type": "string" },
+          "owner_note": { "type": "string" }
+        }
+      }
+    },
+    "validation_status": { "type": "string" },
+    "validation_issues": { "type": "string" }
+  }
+}
