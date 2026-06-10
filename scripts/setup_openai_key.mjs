@@ -33,7 +33,7 @@ const defaults = {
   AI_MODEL: modelInput || currentModel,
   SEO_SPREADSHEET_TOKEN: "your_feishu_spreadsheet_token",
   SEO_HOT_SHEET_ID: "your_hot_topic_sheet_id",
-  SEO_BLOG_SHEET_ID: "your_blog_review_sheet_id",
+  SEO_BLOG_SHEET_ID: "your_manuscript_review_sheet_id",
   SEO_CONFIG_SHEET_ID: "your_seo_config_sheet_id",
   SEO_STRATEGY_SHEET_ID: "your_strategy_sheet_id",
   SEO_MAX_ROWS: "200",

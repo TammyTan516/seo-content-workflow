@@ -40,9 +40,9 @@ Recommended `Status` dropdown:
 生成失败
 ```
 
-## Blog Review
+## Manuscript Review
 
-Sheet name suggestion: `Blog审核`
+Sheet name suggestion: `稿件审核`
 
 | Column | Header | Maintained by | Notes |
 | --- | --- | --- | --- |

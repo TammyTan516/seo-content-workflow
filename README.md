@@ -44,7 +44,7 @@ The workflow writes all final publishing metadata into a central SEO configurati
 | Sheet | Purpose | Use Case |
 | --- | --- | --- |
 | `Blog每日热点稿` | Generate new SEO articles from keywords and current sources | No existing article; create a fresh SEO post |
-| `Blog审核` | Rewrite existing articles for SEO | Existing draft, blog post, or PR article |
+| `稿件审核` | Rewrite existing articles for SEO | Existing draft, blog post, or PR article |
 | `SEO配置` | Collect final publishing fields | Copy fields into a CMS/backend |
 | `SEO基础策略逻辑` | Store global SEO strategy | Brand rules, keyword rules, product positioning |
 | `使用规则` | Team SOP | Human-readable operating guide |
@@ -110,7 +110,7 @@ Fill in your own Feishu/Lark spreadsheet settings in `.env`:
 ```env
 SEO_SPREADSHEET_TOKEN=your_feishu_spreadsheet_token
 SEO_HOT_SHEET_ID=your_hot_topic_sheet_id
-SEO_BLOG_SHEET_ID=your_blog_review_sheet_id
+SEO_BLOG_SHEET_ID=your_manuscript_review_sheet_id
 SEO_CONFIG_SHEET_ID=your_seo_config_sheet_id
 SEO_STRATEGY_SHEET_ID=your_strategy_sheet_id
 ```
@@ -193,8 +193,8 @@ The workflow processes:
 
 - `Blog每日热点稿` rows where `Status = 待评估` and `Target Audience`, `Primary Keyword`, `Search Intent` are filled
 - `Blog每日热点稿` rows where `Status = 不适合`, if the row was manually rejected and should be regenerated
-- `Blog审核` rows where `SEO Status = 待读取`
-- `Blog审核` rows where `Article Status = 重新生成`
+- `稿件审核` rows where `SEO Status = 待读取`
+- `稿件审核` rows where `Article Status = 重新生成`
 
 ---
 
@@ -242,7 +242,7 @@ Set Status = 不适合, then run npm run workflow again.
 
 ---
 
-## Blog Review / Blog审核
+## Manuscript Review / 稿件审核
 
 Use this sheet when you already have a draft article or PR content.
 
@@ -331,11 +331,11 @@ SEO_HOT_SOURCE_LIMIT=6
 
 1. Choose the right sheet:
    - New hot-topic article: `Blog每日热点稿`
-   - Existing draft optimization: `Blog审核`
+   - Existing draft optimization: `稿件审核`
 2. Fill the required human fields.
 3. Set the trigger status:
    - `Blog每日热点稿`: `Status = 待评估`
-   - `Blog审核`: `SEO Status = 待读取`
+   - `稿件审核`: `SEO Status = 待读取`
 4. Run:
 
 ```bash

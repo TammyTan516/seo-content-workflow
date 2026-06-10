@@ -83,7 +83,7 @@ for (let index = 1; index < blogRows.length; index += 1) {
 }
 
 if (updates.length === 0) {
-  console.log("No rows matched Blog每日热点稿 Status=待评估/不适合 with required inputs, or Blog审核 SEO Status=待读取 / Article Status=重新生成.");
+  console.log("No rows matched Blog每日热点稿 Status=待评估/不适合 with required inputs, or 稿件审核 SEO Status=待读取 / Article Status=重新生成.");
 } else {
   console.log(`Processed ${updates.length} row(s):`);
   for (const update of updates) console.log(`- Row ${update.rowNumber}: ${update.summary}`);
