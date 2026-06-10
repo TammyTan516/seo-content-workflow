@@ -133,6 +133,27 @@ npm run feishu:config
 
 Your Feishu/Lark user must have permission to read and write the target spreadsheet and create documents.
 
+The workflow can also update generated document sharing permissions. If enabled, your Feishu/Lark authorization needs permission-setting access for docs.
+
+```env
+SEO_REVISED_DOC_PUBLIC_ACCESS=true
+SEO_REVISED_DOC_LINK_SHARE_ENTITY=anyone_editable
+```
+
+Supported `SEO_REVISED_DOC_LINK_SHARE_ENTITY` values follow Feishu/Lark Drive permission settings:
+
+```txt
+tenant_readable
+tenant_editable
+anyone_readable
+anyone_editable
+closed
+```
+
+`anyone_editable` means anyone with the link can edit, if your tenant security policy allows external sharing.
+
+如果组织安全策略禁止对外分享，飞书 API 会拒绝更新权限；这时需要联系飞书租户管理员开启对应策略，代码无法绕过组织级限制。
+
 ---
 
 ## AI Provider Setup / AI 配置

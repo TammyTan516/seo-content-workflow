@@ -24,6 +24,8 @@ const AI_API_KEY = process.env.AI_API_KEY || env.AI_API_KEY || process.env.OPENA
 const CODEX_MODEL = process.env.CODEX_MODEL || env.CODEX_MODEL || "";
 const REVISED_DOC_PARENT_TOKEN = process.env.SEO_REVISED_DOC_PARENT_TOKEN || env.SEO_REVISED_DOC_PARENT_TOKEN || "";
 const FEISHU_DOC_BASE_URL = (process.env.FEISHU_DOC_BASE_URL || env.FEISHU_DOC_BASE_URL || "https://www.feishu.cn/docx").replace(/\/+$/, "");
+const REVISED_DOC_PUBLIC_ACCESS = (process.env.SEO_REVISED_DOC_PUBLIC_ACCESS || env.SEO_REVISED_DOC_PUBLIC_ACCESS || "true").toLowerCase() === "true";
+const REVISED_DOC_LINK_SHARE_ENTITY = process.env.SEO_REVISED_DOC_LINK_SHARE_ENTITY || env.SEO_REVISED_DOC_LINK_SHARE_ENTITY || "anyone_editable";
 
 const larkCli = await resolveLarkCli();
 
@@ -673,7 +675,36 @@ async function createRevisedDoc({ title, markdown }) {
   const token = doc.document_id || doc.token || doc.obj_token || "";
   const url = doc.url || (token ? `${FEISHU_DOC_BASE_URL}/${token}` : "");
   if (!url && !token) throw new Error(`Could not resolve created revised doc URL: ${JSON.stringify(result)}`);
+  if (token && REVISED_DOC_PUBLIC_ACCESS) {
+    await updateRevisedDocPermission(token);
+  }
   return { token, url };
+}
+
+async function updateRevisedDocPermission(token) {
+  const editable = REVISED_DOC_LINK_SHARE_ENTITY === "anyone_editable" || REVISED_DOC_LINK_SHARE_ENTITY === "tenant_editable";
+  try {
+    await runJson([
+      "drive",
+      "permission.public",
+      "patch",
+      "--as",
+      "user",
+      "--params",
+      JSON.stringify({ token, type: "docx" }),
+      "--data",
+      JSON.stringify({
+        external_access: REVISED_DOC_LINK_SHARE_ENTITY.startsWith("anyone_"),
+        link_share_entity: REVISED_DOC_LINK_SHARE_ENTITY,
+        share_entity: "anyone",
+        comment_entity: editable ? "anyone_can_edit" : "anyone_can_view",
+        security_entity: editable ? "anyone_can_edit" : "anyone_can_view",
+      }),
+      "--yes",
+    ]);
+  } catch (error) {
+    throw new Error(`Created revised doc, but failed to update public link permission: ${error.message || error}`);
+  }
 }
 
 function buildPublishReadyMarkdown(generated) {
