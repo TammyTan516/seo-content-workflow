@@ -75,6 +75,12 @@ SEO_CONFIG_SHEET_ID=your_seo_config_sheet_id
 SEO_STRATEGY_SHEET_ID=your_strategy_sheet_id
 ```
 
+如果你是从旧版本升级，且运行时报 `Missing required config SEO_HOT_SHEET_ID`，说明本地 `.env` 少了新增的热点稿 sheet id。请从 `.env.example` 复制这一行到自己的 `.env`，并填入你自己的 `Blog每日热点稿` sheet id：
+
+```env
+SEO_HOT_SHEET_ID=your_hot_topic_sheet_id
+```
+
 表头模板见：
 
 ```txt
@@ -417,6 +423,12 @@ SEO_HOT_SHEET_ID=your_hot_topic_sheet_id
 SEO_BLOG_SHEET_ID=your_manuscript_review_sheet_id
 SEO_CONFIG_SHEET_ID=your_seo_config_sheet_id
 SEO_STRATEGY_SHEET_ID=your_strategy_sheet_id
+```
+
+If you are upgrading from an older version and see `Missing required config SEO_HOT_SHEET_ID`, your local `.env` is missing the newly added hot-topic sheet id. Copy this line from `.env.example` into your own `.env` and fill it with your `Blog每日热点稿` sheet id:
+
+```env
+SEO_HOT_SHEET_ID=your_hot_topic_sheet_id
 ```
 
 See the public sheet template:
