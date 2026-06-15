@@ -20,7 +20,7 @@ Sheet name suggestion: `Blog每日热点稿`
 | J | Product Fit | Workflow | Why this topic fits the product. |
 | K | Validation Issues | Workflow | `无问题`, `信息来源不足`, or failure details. |
 | L | SEO Config Synced | Workflow | `未同步`, `同步中`, `已同步`, `同步失败`, `无需同步`. |
-| M | SEO Revised Doc URL | Workflow | Generated publish-ready Feishu doc. |
+| M | SEO Revised Doc URL | Workflow | Generated bilingual publish-ready Feishu doc with English and Chinese CMS body sections. |
 | N | SEO Revised Doc Token | Workflow | Generated doc token. |
 | O | Source | Workflow | Source names. |
 | P | Source URL | Workflow | Source links. |
@@ -58,7 +58,7 @@ Sheet name suggestion: `稿件审核`
 | J | Validation Status | Workflow | Validation result. |
 | K | Validation Issues | Workflow | Validation details. |
 | L | Final Approved | Human | Final approval state. |
-| M | SEO Revised Doc URL | Workflow | Generated publish-ready Feishu doc. |
+| M | SEO Revised Doc URL | Workflow | Generated bilingual publish-ready Feishu doc with English and Chinese CMS body sections. |
 | N | SEO Revised Doc Token | Workflow | Generated doc token. |
 | O | Blog Doc Token | Workflow | Source document token. |
 

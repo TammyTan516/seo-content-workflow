@@ -534,7 +534,7 @@ async function generateSeoPackageWithCompatibleApi(prompt) {
   if (!output) throw new Error("AI response did not include output text.");
 
   const parsed = JSON.parse(output);
-  const required = ["seo_title", "meta_description", "keywords", "llm_summary", "seo_revised_article", "publish_format_output", "section_breakdown", "keyword_mapping", "publish_checklist"];
+  const required = requiredGeneratedFields();
   for (const key of required) {
     if (!parsed[key]) throw new Error(`Generated JSON missing required field: ${key}`);
   }
@@ -573,7 +573,7 @@ async function generateSeoPackageWithCodex(prompt) {
   await runCommand(codexBin, args, { cwd: rootDir, timeoutMs: 10 * 60 * 1000 });
   const output = fs.readFileSync(outputPath, "utf8").trim();
   const parsed = JSON.parse(stripJsonFences(output));
-  const required = ["seo_title", "meta_description", "keywords", "llm_summary", "seo_revised_article", "publish_format_output", "section_breakdown", "keyword_mapping", "publish_checklist"];
+  const required = requiredGeneratedFields();
   for (const key of required) {
     if (!parsed[key]) throw new Error(`Codex output missing required field: ${key}`);
   }
@@ -614,6 +614,19 @@ function buildGenerationPrompt({ strategy, sourceMarkdown, sourceTitle, primaryK
     "- publish_format_output",
     "- faq_schema_jsonld",
     "- source_notes",
+    "- zh_source_title",
+    "- zh_seo_title",
+    "- zh_suggested_slug",
+    "- zh_suggested_url",
+    "- zh_meta_description",
+    "- zh_keywords",
+    "- zh_excerpt",
+    "- zh_recommended_cta",
+    "- zh_llm_summary",
+    "- zh_seo_revised_article",
+    "- zh_publish_format_output",
+    "- zh_faq_schema_jsonld",
+    "- zh_source_notes",
     "- validation_status",
     "- validation_issues",
     "",
@@ -623,7 +636,11 @@ function buildGenerationPrompt({ strategy, sourceMarkdown, sourceTitle, primaryK
     "- publish_checklist: objects with checklist_item, status, owner_note",
     "",
     "Rules:",
-    "- Keep output in English.",
+    "- Existing non-zh fields must be English.",
+    "- zh_* fields must be Simplified Chinese, localized for Chinese readers rather than a stiff literal translation.",
+    "- Produce a complete English article in seo_revised_article and a complete Chinese article in zh_seo_revised_article.",
+    "- Keep brand names, product names, URLs, file formats, and technical terms accurate. Translate explanatory copy, not product names.",
+    "- If no separate Chinese URL policy is provided, zh_suggested_url may reuse suggested_url or use /zh/blog/{slug}; keep it consistent and clearly formatted.",
     "- Do not invent unsupported product capabilities.",
     "- Keep SEO title clear and aligned to the primary keyword.",
     "- Keep meta description concise and useful.",
@@ -633,6 +650,35 @@ function buildGenerationPrompt({ strategy, sourceMarkdown, sourceTitle, primaryK
     "- suggested_slug should be lowercase kebab-case without /blog/.",
     "- suggested_url should be /blog/{suggested_slug}.",
   ].join("\n");
+}
+
+function requiredGeneratedFields() {
+  return [
+    "seo_title",
+    "meta_description",
+    "keywords",
+    "llm_summary",
+    "seo_revised_article",
+    "publish_format_output",
+    "faq_schema_jsonld",
+    "source_notes",
+    "zh_source_title",
+    "zh_seo_title",
+    "zh_suggested_slug",
+    "zh_suggested_url",
+    "zh_meta_description",
+    "zh_keywords",
+    "zh_excerpt",
+    "zh_recommended_cta",
+    "zh_llm_summary",
+    "zh_seo_revised_article",
+    "zh_publish_format_output",
+    "zh_faq_schema_jsonld",
+    "zh_source_notes",
+    "section_breakdown",
+    "keyword_mapping",
+    "publish_checklist",
+  ];
 }
 
 function normalizeBaseUrl(input) {
@@ -708,7 +754,7 @@ async function updateRevisedDocPermission(token) {
 }
 
 function buildPublishReadyMarkdown(generated) {
-  const publishingRows = [
+  const englishPublishingRows = [
     ["Publish Status", "Ready for SEO blog publishing", "Fixed config"],
     ["Recommended Blog Title / H1", generated.source_title || "", "Review"],
     ["SEO Title", generated.seo_title || "", "Review / copy to SEO title field"],
@@ -723,34 +769,68 @@ function buildPublishReadyMarkdown(generated) {
     ["Recommended CTA", generated.recommended_cta || "", "Review"],
     ["Internal Link Suggestions", generated.internal_link_suggestions || "", "Reference"],
   ];
+  const chinesePublishingRows = [
+    ["发布状态", "可发布中文 SEO 稿", "固定配置"],
+    ["推荐中文标题 / H1", generated.zh_source_title || "", "审核"],
+    ["中文 SEO Title", generated.zh_seo_title || "", "审核 / 复制到中文 SEO title 字段"],
+    ["中文 Slug", generated.zh_suggested_slug || generated.suggested_slug || slugFromUrl(generated.zh_suggested_url || generated.suggested_url || generated.seo_url || ""), "复制到中文 slug 字段"],
+    ["中文 URL", generated.zh_suggested_url || generated.suggested_url || generated.seo_url || "", "参考"],
+    ["中文 Meta Description", generated.zh_meta_description || "", "审核 / 复制到中文 meta description 字段"],
+    ["主关键词", generated.primary_keyword || "", "固定配置"],
+    ["中文关键词", generated.zh_keywords || "", "固定配置"],
+    ["搜索意图", generated.search_intent || "", "固定配置"],
+    ["目标受众", generated.target_audience || "", "参考"],
+    ["中文摘要 Excerpt", generated.zh_excerpt || "", "如 CMS 有摘要字段则复制"],
+    ["中文 CTA", generated.zh_recommended_cta || "", "审核"],
+    ["内链建议", generated.internal_link_suggestions || "", "参考"],
+  ];
 
   return [
-    "# SEO Blog Publishing Package",
+    "# Bilingual SEO Blog Publishing Package",
     "",
     "## MANUAL REVIEW - Read This First",
     "",
-    "Review the title, meta description, excerpt, CTA, and the full blog body before publishing. Configuration/reference sections below should not be pasted into the visible article body unless your CMS has matching fields.",
+    "Review both English and Chinese versions before publishing. Only paste the matching language body into the matching CMS language page. Configuration/reference sections below should not be pasted into the visible article body unless your CMS has matching fields.",
     "",
-    "## CONFIG TABLE - Copy Fields To CMS",
-    markdownTable(["Field", "Final Content / Notes", "Action"], publishingRows),
+    "## CONFIG TABLE - English CMS Fields",
+    markdownTable(["Field", "Final Content / Notes", "Action"], englishPublishingRows),
     "",
-    "## COPY TO CMS - Blog Body Only",
+    "## 配置表 - 中文 CMS 字段",
+    markdownTable(["字段", "最终内容 / 备注", "操作"], chinesePublishingRows),
     "",
-    "Copy the content below into the CMS article body. Do not include the config tables, JSON-LD block, source notes, section breakdown, keyword mapping, or checklist unless the CMS has a dedicated field for them.",
+    "## COPY TO CMS - English Blog Body Only",
+    "",
+    "Copy the English content below into the English CMS article body. Do not include the config tables, JSON-LD block, source notes, section breakdown, keyword mapping, or checklist unless the CMS has a dedicated field for them.",
     "",
     generated.seo_revised_article || "",
     "",
-    "## OPTIONAL SEO SCHEMA - Do Not Paste Into Visible Body",
+    "## 复制到 CMS - 中文正文 Only",
     "",
-    "Use this only if the CMS has a custom JSON-LD / structured data field. Otherwise ignore this section.",
+    "将下面的中文正文复制到中文站 CMS 正文字段。不要复制配置表、JSON-LD、来源说明、结构拆解、关键词映射或审核清单，除非 CMS 有对应字段。",
+    "",
+    generated.zh_seo_revised_article || "",
+    "",
+    "## OPTIONAL SEO SCHEMA - English JSON-LD",
+    "",
+    "Use this only if the English CMS page has a custom JSON-LD / structured data field. Otherwise ignore this section.",
     "",
     "```json",
     generated.faq_schema_jsonld || "{}",
     "```",
     "",
-    "## REFERENCE TABLE - Source Notes",
+    "## 可选 SEO Schema - 中文 JSON-LD",
+    "",
+    "仅当中文 CMS 页面有 JSON-LD / 结构化数据字段时使用。否则忽略本段，不要粘贴到可见正文。",
+    "",
+    "```json",
+    generated.zh_faq_schema_jsonld || "{}",
+    "```",
+    "",
+    "## REFERENCE TABLE - Source Notes / 来源说明",
     "",
     generated.source_notes || "Optimized from the source Feishu blog draft and SEO strategy sheet.",
+    "",
+    generated.zh_source_notes || "",
     "",
     "## REFERENCE TABLE - Section Breakdown",
     markdownTable(
