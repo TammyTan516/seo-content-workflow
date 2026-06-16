@@ -266,6 +266,7 @@ async function processRow(rowNumber, row) {
   }
 
   const contentId = cellText(row, blogHeader, "Content ID") || buildContentId({ seoUrl: "", docToken: docRef.token || documentId, sourceTitle });
+  const seoRowNumber = nextSeoRowForContent(contentId);
   const validationStatus = issues.length === 0 ? "校验通过" : "校验失败";
   const validationIssues = issues.length === 0 ? "无问题" : issues.join("; ");
   const nextSeoStatus = fetchIssue ? "生成失败" : issues.length === 0 ? "待生成" : "已读取";
@@ -281,7 +282,7 @@ async function processRow(rowNumber, row) {
     "Blog Doc Token": docRef.token || documentId,
   });
 
-  await writeFields(SEO_SHEET_ID, seoHeader, rowNumber, {
+  await writeFields(SEO_SHEET_ID, seoHeader, seoRowNumber, {
     "Date": currentDate,
     "Content ID": contentId,
     "Blog Doc URL": blogDocCellValue,
@@ -298,6 +299,11 @@ async function processRow(rowNumber, row) {
     "Last Source Sync Time": new Date().toISOString(),
     "Last SEO Generated Time": "",
     "Blog Doc Token": docRef.token || documentId,
+  });
+  updateLocalSeoRow(seoRowNumber, {
+    "Date": currentDate,
+    "Content ID": contentId,
+    "Blog Doc URL": blogDocCellValue,
   });
 
   if (issues.length === 0) {
@@ -328,7 +334,7 @@ async function processRow(rowNumber, row) {
         suggested_slug: generatedRaw.suggested_slug || slugFromUrl(finalSeoUrl),
       };
 
-      await writeFields(SEO_SHEET_ID, seoHeader, rowNumber, {
+      await writeFields(SEO_SHEET_ID, seoHeader, seoRowNumber, {
         "Date": currentDate,
         "Content ID": contentId,
         "Blog Doc URL": blogDocCellValue,
@@ -346,6 +352,11 @@ async function processRow(rowNumber, row) {
         "Last Source Sync Time": new Date().toISOString(),
         "Last SEO Generated Time": new Date().toISOString(),
         "Blog Doc Token": docRef.token || documentId,
+      });
+      updateLocalSeoRow(seoRowNumber, {
+        "Date": currentDate,
+        "Content ID": contentId,
+        "Blog Doc URL": blogDocCellValue,
       });
 
       const revisedDoc = await createRevisedDoc({
