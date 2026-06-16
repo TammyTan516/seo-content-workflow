@@ -178,25 +178,31 @@ async function processHotRow(rowNumber, row) {
     });
 
     const seoRowNumber = nextSeoRowForContent(contentId);
-    await writeFields(SEO_SHEET_ID, seoHeader, seoRowNumber, {
+    const existingSeoStatus = cellText(seoRows[seoRowNumber - 1] || [], seoHeader, "Status");
+    const seoFields = {
       "Date": currentDate,
       "Content ID": contentId,
       "Blog Doc URL": revisedDoc.url,
-      "Status": "待配置",
-      "SEO URL": finalSeoUrl,
+      "Status": existingSeoStatus || "待配置",
       "Source Title": generated.source_title || sourceTitle,
-      "Secondary Keywords": generated.secondary_keywords || "",
       "Source Content Snapshot": sourceSnapshotPreview(sourceMarkdown),
-      "SEO Title": generated.seo_title || "",
-      "Meta Description": generated.meta_description || "",
-      "Keywords": generated.keywords || "",
-      "LLM Summary": generated.llm_summary || "",
-      "SEO Revised Article": "[Generated. See Blog Doc URL / SEO Revised Doc URL for publish-ready document.]",
-      "Publish Format Output": "[Generated. See Blog Doc URL / SEO Revised Doc URL for publish-ready document.]",
       "Last Source Sync Time": new Date().toISOString(),
       "Last SEO Generated Time": new Date().toISOString(),
       "Blog Doc Token": revisedDoc.token,
-    });
+    };
+    if (existingSeoStatus !== "已配置") {
+      Object.assign(seoFields, {
+        "SEO URL": finalSeoUrl,
+        "Secondary Keywords": generated.secondary_keywords || "",
+        "SEO Title": generated.seo_title || "",
+        "Meta Description": generated.meta_description || "",
+        "Keywords": generated.keywords || "",
+        "LLM Summary": generated.llm_summary || "",
+        "SEO Revised Article": "[Generated. See Blog Doc URL / SEO Revised Doc URL for publish-ready document.]",
+        "Publish Format Output": "[Generated. See Blog Doc URL / SEO Revised Doc URL for publish-ready document.]",
+      });
+    }
+    await writeFields(SEO_SHEET_ID, seoHeader, seoRowNumber, seoFields);
     updateLocalSeoRow(seoRowNumber, {
       "Date": currentDate,
       "Content ID": contentId,
@@ -267,6 +273,7 @@ async function processRow(rowNumber, row) {
 
   const contentId = cellText(row, blogHeader, "Content ID") || buildContentId({ seoUrl: "", docToken: docRef.token || documentId, sourceTitle });
   const seoRowNumber = nextSeoRowForContent(contentId);
+  const existingSeoStatus = cellText(seoRows[seoRowNumber - 1] || [], seoHeader, "Status");
   const validationStatus = issues.length === 0 ? "校验通过" : "校验失败";
   const validationIssues = issues.length === 0 ? "无问题" : issues.join("; ");
   const nextSeoStatus = fetchIssue ? "生成失败" : issues.length === 0 ? "待生成" : "已读取";
@@ -286,18 +293,10 @@ async function processRow(rowNumber, row) {
     "Date": currentDate,
     "Content ID": contentId,
     "Blog Doc URL": blogDocCellValue,
-    "Status": "待配置",
+    "Status": existingSeoStatus || "待配置",
     "Source Title": sourceTitle,
-    "Secondary Keywords": "",
     "Source Content Snapshot": sourceSnapshotPreview(sourceMarkdown),
-    "SEO Title": "",
-    "Meta Description": "",
-    "Keywords": "",
-    "LLM Summary": "",
-    "SEO Revised Article": "",
-    "Publish Format Output": "",
     "Last Source Sync Time": new Date().toISOString(),
-    "Last SEO Generated Time": "",
     "Blog Doc Token": docRef.token || documentId,
   });
   updateLocalSeoRow(seoRowNumber, {
@@ -334,25 +333,30 @@ async function processRow(rowNumber, row) {
         suggested_slug: generatedRaw.suggested_slug || slugFromUrl(finalSeoUrl),
       };
 
-      await writeFields(SEO_SHEET_ID, seoHeader, seoRowNumber, {
+      const seoFields = {
         "Date": currentDate,
         "Content ID": contentId,
         "Blog Doc URL": blogDocCellValue,
-        "Status": "待配置",
-        "SEO URL": finalSeoUrl,
+        "Status": existingSeoStatus || "待配置",
         "Source Title": generated.source_title || sourceTitle,
-        "Secondary Keywords": generated.secondary_keywords || "",
         "Source Content Snapshot": sourceSnapshotPreview(sourceMarkdown),
-        "SEO Title": generated.seo_title || "",
-        "Meta Description": generated.meta_description || "",
-        "Keywords": generated.keywords || "",
-        "LLM Summary": generated.llm_summary || "",
-        "SEO Revised Article": "[Generated. See SEO Revised Doc URL after document sync succeeds.]",
-        "Publish Format Output": "[Generated. See SEO Revised Doc URL after document sync succeeds.]",
         "Last Source Sync Time": new Date().toISOString(),
         "Last SEO Generated Time": new Date().toISOString(),
         "Blog Doc Token": docRef.token || documentId,
-      });
+      };
+      if (existingSeoStatus !== "已配置") {
+        Object.assign(seoFields, {
+          "SEO URL": finalSeoUrl,
+          "Secondary Keywords": generated.secondary_keywords || "",
+          "SEO Title": generated.seo_title || "",
+          "Meta Description": generated.meta_description || "",
+          "Keywords": generated.keywords || "",
+          "LLM Summary": generated.llm_summary || "",
+          "SEO Revised Article": "[Generated. See SEO Revised Doc URL after document sync succeeds.]",
+          "Publish Format Output": "[Generated. See SEO Revised Doc URL after document sync succeeds.]",
+        });
+      }
+      await writeFields(SEO_SHEET_ID, seoHeader, seoRowNumber, seoFields);
       updateLocalSeoRow(seoRowNumber, {
         "Date": currentDate,
         "Content ID": contentId,
@@ -1219,7 +1223,7 @@ function buildContentId({ seoUrl, docToken, sourceTitle }) {
 }
 
 function resolveSeoUrl(generated) {
-  const fromGenerated = generated?.suggested_url || generated?.seo_url || "";
+  const fromGenerated = normalizeGeneratedUrl(generated?.suggested_url || generated?.seo_url || "");
   if (fromGenerated) {
     if (fromGenerated.startsWith("/")) return fromGenerated;
     const slug = slugFromUrl(fromGenerated) || slugify(fromGenerated);
@@ -1230,10 +1234,21 @@ function resolveSeoUrl(generated) {
   return slug ? `/blog/${slug}` : "";
 }
 
+function normalizeGeneratedUrl(input) {
+  const raw = inlineText(input);
+  if (!raw) return "";
+
+  const markdownLink = raw.match(/\[[^\]]+\]\(([^)]+)\)/);
+  const candidate = markdownLink?.[1] || raw;
+  const urlMatch = candidate.match(/https?:\/\/[^\s)]+|\/[a-z0-9][^\s)]*/i);
+  return (urlMatch?.[0] || candidate).trim();
+}
+
 function slugFromUrl(input) {
-  if (!input) return "";
+  const normalized = normalizeGeneratedUrl(input);
+  if (!normalized) return "";
   try {
-    const parsed = new URL(input);
+    const parsed = new URL(normalized, "https://example.com");
     const parts = parsed.pathname.split("/").filter(Boolean);
     return slugify(parts.at(-1) || "");
   } catch {
