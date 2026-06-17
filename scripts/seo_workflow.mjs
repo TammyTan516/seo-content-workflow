@@ -178,18 +178,18 @@ async function processHotRow(rowNumber, row) {
     });
 
     const seoRowNumber = nextSeoRowForContent(contentId);
-    const existingSeoStatus = cellText(seoRows[seoRowNumber - 1] || [], seoHeader, "Status");
+    const existingSeoStatus = await currentSeoStatus(seoRowNumber);
     const seoFields = {
       "Date": currentDate,
       "Content ID": contentId,
       "Blog Doc URL": revisedDoc.url,
-      "Status": existingSeoStatus || "待配置",
       "Source Title": generated.source_title || sourceTitle,
       "Source Content Snapshot": sourceSnapshotPreview(sourceMarkdown),
       "Last Source Sync Time": new Date().toISOString(),
       "Last SEO Generated Time": new Date().toISOString(),
       "Blog Doc Token": revisedDoc.token,
     };
+    if (!existingSeoStatus) seoFields["Status"] = "待配置";
     if (existingSeoStatus !== "已配置") {
       Object.assign(seoFields, {
         "SEO URL": finalSeoUrl,
@@ -273,7 +273,7 @@ async function processRow(rowNumber, row) {
 
   const contentId = cellText(row, blogHeader, "Content ID") || buildContentId({ seoUrl: "", docToken: docRef.token || documentId, sourceTitle });
   const seoRowNumber = nextSeoRowForContent(contentId);
-  const existingSeoStatus = cellText(seoRows[seoRowNumber - 1] || [], seoHeader, "Status");
+  const existingSeoStatus = await currentSeoStatus(seoRowNumber);
   const validationStatus = issues.length === 0 ? "校验通过" : "校验失败";
   const validationIssues = issues.length === 0 ? "无问题" : issues.join("; ");
   const nextSeoStatus = fetchIssue ? "生成失败" : issues.length === 0 ? "待生成" : "已读取";
@@ -289,16 +289,17 @@ async function processRow(rowNumber, row) {
     "Blog Doc Token": docRef.token || documentId,
   });
 
-  await writeFields(SEO_SHEET_ID, seoHeader, seoRowNumber, {
+  const sourceSyncFields = {
     "Date": currentDate,
     "Content ID": contentId,
     "Blog Doc URL": blogDocCellValue,
-    "Status": existingSeoStatus || "待配置",
     "Source Title": sourceTitle,
     "Source Content Snapshot": sourceSnapshotPreview(sourceMarkdown),
     "Last Source Sync Time": new Date().toISOString(),
     "Blog Doc Token": docRef.token || documentId,
-  });
+  };
+  if (!existingSeoStatus) sourceSyncFields["Status"] = "待配置";
+  await writeFields(SEO_SHEET_ID, seoHeader, seoRowNumber, sourceSyncFields);
   updateLocalSeoRow(seoRowNumber, {
     "Date": currentDate,
     "Content ID": contentId,
@@ -333,18 +334,19 @@ async function processRow(rowNumber, row) {
         suggested_slug: generatedRaw.suggested_slug || slugFromUrl(finalSeoUrl),
       };
 
+      const latestSeoStatus = await currentSeoStatus(seoRowNumber);
       const seoFields = {
         "Date": currentDate,
         "Content ID": contentId,
         "Blog Doc URL": blogDocCellValue,
-        "Status": existingSeoStatus || "待配置",
         "Source Title": generated.source_title || sourceTitle,
         "Source Content Snapshot": sourceSnapshotPreview(sourceMarkdown),
         "Last Source Sync Time": new Date().toISOString(),
         "Last SEO Generated Time": new Date().toISOString(),
         "Blog Doc Token": docRef.token || documentId,
       };
-      if (existingSeoStatus !== "已配置") {
+      if (!latestSeoStatus) seoFields["Status"] = "待配置";
+      if (latestSeoStatus !== "已配置") {
         Object.assign(seoFields, {
           "SEO URL": finalSeoUrl,
           "Secondary Keywords": generated.secondary_keywords || "",
@@ -442,6 +444,21 @@ async function writeFields(sheetId, map, rowNumber, fields) {
   for (const [headerName, value] of Object.entries(fields)) {
     await writeField(sheetId, map, rowNumber, headerName, value);
   }
+}
+
+async function currentSeoStatus(rowNumber) {
+  const statusCol = seoHeader[normalizeHeader("Status")];
+  if (!statusCol) return cellText(seoRows[rowNumber - 1] || [], seoHeader, "Status");
+
+  try {
+    const rows = await readRange(`${SEO_SHEET_ID}!${columnName(statusCol)}${rowNumber}:${columnName(statusCol)}${rowNumber}`);
+    const liveStatus = text(rows?.[0]?.[0]);
+    if (liveStatus) return liveStatus;
+  } catch {
+    // Fall back to the startup snapshot if the live read fails.
+  }
+
+  return cellText(seoRows[rowNumber - 1] || [], seoHeader, "Status");
 }
 
 function headerMap(headers) {
