@@ -50,7 +50,7 @@ Sheet name suggestion: `稿件审核`
 | B | Content ID | Workflow | Stable content key. |
 | C | Blog Doc URL | Human | Required source Feishu document. |
 | D | Primary Keyword | Human | Required. |
-| E | Search Intent | Human | Required. Dropdown recommended. |
+| E | Search Intent | Human / Workflow | Optional. Dropdown recommended; workflow infers and writes this back when blank. |
 | F | Reviewer | Human | Reviewer mention/name. |
 | G | Review note | Human | Optional editing instruction. |
 | H | SEO Status | Human / Workflow | Set to `待读取` to start. |

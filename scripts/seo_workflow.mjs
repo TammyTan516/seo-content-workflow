@@ -260,7 +260,7 @@ async function processRow(rowNumber, row) {
   }
   const blogDocCellValue = docRef.url || docRef.localPath || docRef.title || cellText(row, blogHeader, "Blog Doc URL");
   const primaryKeyword = cellInlineText(row, blogHeader, "Primary Keyword");
-  const searchIntent = cellInlineText(row, blogHeader, "Search Intent");
+  let searchIntent = cellInlineText(row, blogHeader, "Search Intent");
   const reviewNote = cellText(row, blogHeader, "Review note");
   const existingDate = cellText(row, blogHeader, "Date");
   const currentDate = existingDate || todayShanghai();
@@ -268,7 +268,6 @@ async function processRow(rowNumber, row) {
 
   if (!docRef.url && !docRef.token && !docRef.localPath) issues.push("缺少 Blog Doc URL");
   if (!primaryKeyword) issues.push("缺少 Primary Keyword");
-  if (!searchIntent) issues.push("缺少 Search Intent");
 
   await writeField(BLOG_SHEET_ID, blogHeader, rowNumber, "SEO Status", "读取中");
 
@@ -289,6 +288,15 @@ async function processRow(rowNumber, row) {
     }
   }
 
+  if (!searchIntent) {
+    searchIntent = inferSearchIntent({
+      title: sourceTitle || docRef.title || cellText(row, blogHeader, "Blog Doc URL"),
+      markdown: sourceMarkdown,
+      primaryKeyword,
+    });
+  }
+  if (!searchIntent) issues.push("缺少 Search Intent");
+
   const contentId = contentIdFromSheet || buildContentId({ seoUrl: "", docToken: docRef.token || documentId, sourceTitle });
   const seoRowNumber = nextSeoRowForContent(contentId);
   const existingSeoStatus = await currentSeoStatus(seoRowNumber);
@@ -300,6 +308,7 @@ async function processRow(rowNumber, row) {
   await writeFields(BLOG_SHEET_ID, blogHeader, rowNumber, {
     "Date": currentDate,
     "Content ID": contentId,
+    "Search Intent": searchIntent,
     "SEO Status": nextSeoStatus,
     "Article Status": nextArticleStatus,
     "Validation Status": validationStatus,
@@ -1455,6 +1464,38 @@ function normalizeGeneratedUrl(input) {
   const candidate = extractLinkCandidate(raw);
   const urlMatch = candidate.match(/https?:\/\/[^\s)]+|\/[a-z0-9][^\s)]*/i);
   return (urlMatch?.[0] || candidate).trim();
+}
+
+function inferSearchIntent({ title, markdown, primaryKeyword }) {
+  const source = String(markdown || "");
+  const haystack = [title, firstMarkdownHeading(source), primaryKeyword, source.slice(0, 2500)]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (!haystack.trim()) return "";
+
+  if (/\b(vs\.?|versus|compare|comparison|alternative|alternatives|best|top|choose|which|review|platforms?|tools?)\b/.test(haystack)) {
+    return "Comparative";
+  }
+
+  if (/\b(how to|tutorial|guide|step[-\s]?by[-\s]?step|workflow|generate|create|make|turn|convert|using|use)\b/.test(haystack)) {
+    return "How-to / Tutorial";
+  }
+
+  if (/\b(use case|solution|for teams?|for creators?|for developers?|for artists?|for games?|production|pipeline|workflow)\b/.test(haystack)) {
+    return "Use Case / Solution";
+  }
+
+  if (/\b(trend|trends|insight|insights|2026|market|future|emerging|latest|new)\b/.test(haystack)) {
+    return "Trend / Insight";
+  }
+
+  if (/\b(what is|who is|v2fun|brand|official|pricing|login|download|website)\b/.test(haystack)) {
+    return "Navigational / Brand";
+  }
+
+  return "Informational";
 }
 
 function isFetchableRemoteDoc(input) {

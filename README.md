@@ -246,7 +246,7 @@ npm run workflow
 | --- | --- | --- | --- |
 | `Blog Doc URL` | 飞书文档链接 | 必填 | 原始文章 |
 | `Primary Keyword` | 文本 | 必填 | 主关键词 |
-| `Search Intent` | 下拉 | 必填 | 搜索意图 |
+| `Search Intent` | 下拉 | 可选 | 搜索意图；为空时工作流会根据标题/正文自动匹配并回填 |
 | `Reviewer` | 人员或文本 | 建议填写 | 审核人 |
 | `Review note` | 文本 | 可选 | 特殊修改要求 |
 | `SEO Status` | 下拉 | 必填 | 设置为 `待读取` 后开始处理 |
@@ -579,7 +579,7 @@ Human-maintained fields:
 | --- | --- | --- | --- |
 | `Blog Doc URL` | Feishu/Lark doc link | Yes | Source article |
 | `Primary Keyword` | Text | Yes | Main SEO keyword |
-| `Search Intent` | Dropdown | Yes | Search intent |
+| `Search Intent` | Dropdown | Optional | Search intent; if blank, the workflow infers it from the title/body and writes it back |
 | `Reviewer` | Mention/name | Recommended | Reviewer |
 | `Review note` | Text | Optional | Special instructions |
 | `SEO Status` | Dropdown | Yes | Set to `待读取` to start |
