@@ -195,6 +195,7 @@ async function processHotRow(rowNumber, row) {
       "Content ID": contentId,
       "Blog Doc URL": revisedDoc.url,
       "Source Title": generated.source_title || sourceTitle,
+      "Article Topics": generated.article_topics || inferArticleTopics(generated),
       "Source Content Snapshot": sourceSnapshotPreview(sourceMarkdown),
       "Last Source Sync Time": new Date().toISOString(),
       "Last SEO Generated Time": new Date().toISOString(),
@@ -209,6 +210,7 @@ async function processHotRow(rowNumber, row) {
         "Meta Description": generated.meta_description || "",
         "Keywords": generated.keywords || "",
         "LLM Summary": generated.llm_summary || "",
+        "Article Topics": generated.article_topics || inferArticleTopics(generated),
         "SEO Revised Article": "[Generated. See Blog Doc URL / SEO Revised Doc URL for publish-ready document.]",
         "Publish Format Output": "[Generated. See Blog Doc URL / SEO Revised Doc URL for publish-ready document.]",
       });
@@ -367,6 +369,7 @@ async function processRow(rowNumber, row) {
         "Content ID": contentId,
         "Blog Doc URL": blogDocCellValue,
         "Source Title": generated.source_title || sourceTitle,
+        "Article Topics": generated.article_topics || inferArticleTopics(generated),
         "Source Content Snapshot": sourceSnapshotPreview(sourceMarkdown),
         "Last Source Sync Time": new Date().toISOString(),
         "Last SEO Generated Time": new Date().toISOString(),
@@ -381,6 +384,7 @@ async function processRow(rowNumber, row) {
           "Meta Description": generated.meta_description || "",
           "Keywords": generated.keywords || "",
           "LLM Summary": generated.llm_summary || "",
+          "Article Topics": generated.article_topics || inferArticleTopics(generated),
           "SEO Revised Article": "[Generated. See SEO Revised Doc URL after document sync succeeds.]",
           "Publish Format Output": "[Generated. See SEO Revised Doc URL after document sync succeeds.]",
         });
@@ -839,6 +843,7 @@ function buildGenerationPrompt({ strategy, sourceMarkdown, sourceTitle, primaryK
     "- primary_keyword",
     "- keywords",
     "- search_intent",
+    "- article_topics",
     "- target_audience",
     "- excerpt",
     "- recommended_cta",
@@ -883,6 +888,7 @@ function buildGenerationPrompt({ strategy, sourceMarkdown, sourceTitle, primaryK
     "- The SEO Revised Doc must be easy to copy into the CMS/backend. Fill the publish package fields carefully.",
     "- suggested_slug should be lowercase kebab-case without /blog/.",
     "- suggested_url should be /blog/{suggested_slug}.",
+    "- article_topics must contain exactly two comma-separated labels selected only from: Image-to-3D, AI 3D Model Generation, AI Animation, Rigging & Motion, Game Assets, 3D Printing, File Formats.",
   ].join("\n");
 }
 
@@ -891,6 +897,7 @@ function requiredGeneratedFields() {
     "seo_title",
     "meta_description",
     "keywords",
+    "article_topics",
     "llm_summary",
     "seo_revised_article",
     "publish_format_output",
@@ -998,6 +1005,7 @@ function buildPublishReadyMarkdown(generated) {
     ["Primary Keyword", generated.primary_keyword || "", "Fixed config"],
     ["Secondary Keywords", generated.secondary_keywords || "", "Fixed config"],
     ["Search Intent", generated.search_intent || "", "Fixed config"],
+    ["Article Topics", generated.article_topics || inferArticleTopics(generated), "Copy to topic/category field"],
     ["Target Audience", generated.target_audience || "", "Reference"],
     ["Excerpt", generated.excerpt || "", "Review / copy if CMS has excerpt field"],
     ["Recommended CTA", generated.recommended_cta || "", "Review"],
@@ -1013,6 +1021,7 @@ function buildPublishReadyMarkdown(generated) {
     ["主关键词", generated.primary_keyword || "", "固定配置"],
     ["中文关键词", generated.zh_keywords || "", "固定配置"],
     ["搜索意图", generated.search_intent || "", "固定配置"],
+    ["文章 Topic 分类", generated.article_topics || inferArticleTopics(generated), "复制到文章 topic/category 字段"],
     ["目标受众", generated.target_audience || "", "参考"],
     ["中文摘要 Excerpt", generated.zh_excerpt || "", "如 CMS 有摘要字段则复制"],
     ["中文 CTA", generated.zh_recommended_cta || "", "审核"],
@@ -1496,6 +1505,46 @@ function inferSearchIntent({ title, markdown, primaryKeyword }) {
   }
 
   return "Informational";
+}
+
+function inferArticleTopics(generated) {
+  const haystack = [
+    generated?.source_title,
+    generated?.seo_title,
+    generated?.primary_keyword,
+    generated?.keywords,
+    generated?.secondary_keywords,
+    generated?.llm_summary,
+    generated?.seo_revised_article?.slice?.(0, 3000),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const scored = [
+    ["Image-to-3D", /\b(image[-\s]?to[-\s]?3d|2d image|photo|picture|product photo|image generation|image prep)\b/g],
+    ["AI 3D Model Generation", /\b(3d model generation|3d generator|ai 3d model|text[-\s]?to[-\s]?3d|mesh|modeling|3d asset)\b/g],
+    ["AI Animation", /\b(animation|animate|motion|mocap|motion capture|keyframe|retarget|video[-\s]?to[-\s]?motion)\b/g],
+    ["Rigging & Motion", /\b(rigging|auto[-\s]?rig|skeleton|humanoid|bone|skinning|fbx animation|retargeting)\b/g],
+    ["Game Assets", /\b(game asset|game character|unity|unreal|vrchat|game development|prototype|game-ready|engine)\b/g],
+    ["3D Printing", /\b(3d printing|stl|printable|printer|filament|slicer)\b/g],
+    ["File Formats", /\b(file format|fbx|glb|gltf|obj|stl|vrm|export|import)\b/g],
+  ].map(([topic, pattern]) => {
+    const matches = haystack.match(pattern);
+    return { topic, score: matches ? matches.length : 0 };
+  });
+
+  const selected = scored
+    .sort((a, b) => b.score - a.score)
+    .filter((item) => item.score > 0)
+    .slice(0, 2)
+    .map((item) => item.topic);
+
+  while (selected.length < 2) {
+    selected.push(selected.includes("AI 3D Model Generation") ? "Game Assets" : "AI 3D Model Generation");
+  }
+
+  return selected.join(", ");
 }
 
 function isFetchableRemoteDoc(input) {

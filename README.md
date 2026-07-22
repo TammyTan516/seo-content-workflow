@@ -279,11 +279,13 @@ SEO配置 页面已出现对应内容
 - `Keywords`
 - `Secondary Keywords`
 - `LLM Summary`
+- `Article Topics`
 - `Source Title`
 - `Source Content Snapshot`
 - `Last Source Sync Time`
 - `Last SEO Generated Time`
 - `Blog Doc Token`
+- `Published Blog URL` 不由工作流自动写入，发布后由人工回填线上博客链接
 
 当你已经把字段复制到网站后台后，手动设置：
 
@@ -612,11 +614,13 @@ The workflow writes:
 - `Keywords`
 - `Secondary Keywords`
 - `LLM Summary`
+- `Article Topics`
 - `Source Title`
 - `Source Content Snapshot`
 - `Last Source Sync Time`
 - `Last SEO Generated Time`
 - `Blog Doc Token`
+- `Published Blog URL` is not written by the workflow. Fill it manually after the article is live.
 
 After copying fields into your CMS/backend:
 

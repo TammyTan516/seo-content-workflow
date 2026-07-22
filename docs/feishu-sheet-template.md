@@ -105,6 +105,8 @@ Sheet name suggestion: `SEO配置`
 | O | Last Source Sync Time | Workflow | ISO timestamp. |
 | P | Last SEO Generated Time | Workflow | ISO timestamp. |
 | Q | Blog Doc Token | Workflow | Source or generated doc token. |
+| R | Article Topics | Workflow | Two comma-separated topic labels for the blog topic page, selected from the approved topic set. |
+| S | Published Blog URL | Human | Final live blog URL after the article is published. Workflow never overwrites this field. |
 
 Recommended `Status` dropdown:
 
