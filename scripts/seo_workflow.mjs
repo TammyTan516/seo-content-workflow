@@ -39,6 +39,12 @@ const strategyRows = await readRange(`${STRATEGY_SHEET_ID}!A1:F${MAX_ROWS}`);
 const strategy = parseStrategy(strategyRows);
 
 const resetRowArg = process.argv.find((arg) => arg.startsWith("--reset-row="));
+const onlyBlogRowArg = process.argv.find((arg) => arg.startsWith("--blog-row="));
+const onlyBlogRowNumber = onlyBlogRowArg ? Number(onlyBlogRowArg.split("=")[1]) : 0;
+if (onlyBlogRowArg && (!Number.isInteger(onlyBlogRowNumber) || onlyBlogRowNumber < 2)) {
+  throw new Error("--blog-row must be a row number >= 2");
+}
+
 if (resetRowArg) {
   const rowNumber = Number(resetRowArg.split("=")[1]);
   if (!Number.isInteger(rowNumber) || rowNumber < 2) {
@@ -56,19 +62,21 @@ if (resetRowArg) {
 
 const updates = [];
 
-for (let index = 1; index < hotRows.length; index += 1) {
-  const rowNumber = index + 1;
-  const row = hotRows[index] || [];
-  const status = cellText(row, hotHeader, "Status");
-  const targetAudience = cellInlineText(row, hotHeader, "Target Audience");
-  const primaryKeyword = cellInlineText(row, hotHeader, "Primary Keyword");
-  const searchIntent = cellInlineText(row, hotHeader, "Search Intent");
-  const validationIssues = cellInlineText(row, hotHeader, "Validation Issues");
+if (!onlyBlogRowNumber) {
+  for (let index = 1; index < hotRows.length; index += 1) {
+    const rowNumber = index + 1;
+    const row = hotRows[index] || [];
+    const status = cellText(row, hotHeader, "Status");
+    const targetAudience = cellInlineText(row, hotHeader, "Target Audience");
+    const primaryKeyword = cellInlineText(row, hotHeader, "Primary Keyword");
+    const searchIntent = cellInlineText(row, hotHeader, "Search Intent");
+    const validationIssues = cellInlineText(row, hotHeader, "Validation Issues");
 
-  if (!shouldProcessHotStatus(status, validationIssues)) continue;
-  if (!targetAudience || !primaryKeyword || !searchIntent) continue;
+    if (!shouldProcessHotStatus(status, validationIssues)) continue;
+    if (!targetAudience || !primaryKeyword || !searchIntent) continue;
 
-  updates.push(await processHotRow(rowNumber, row));
+    updates.push(await processHotRow(rowNumber, row));
+  }
 }
 
 for (let index = 1; index < blogRows.length; index += 1) {
@@ -77,7 +85,8 @@ for (let index = 1; index < blogRows.length; index += 1) {
   const seoStatus = cellText(row, blogHeader, "SEO Status");
   const articleStatus = cellText(row, blogHeader, "Article Status");
 
-  if (seoStatus !== "待读取" && articleStatus !== "重新生成") continue;
+  if (onlyBlogRowNumber && rowNumber !== onlyBlogRowNumber) continue;
+  if (!onlyBlogRowNumber && seoStatus !== "待读取" && articleStatus !== "重新生成") continue;
 
   updates.push(await processRow(rowNumber, row));
 }
@@ -170,14 +179,16 @@ async function processHotRow(rowNumber, row) {
       primary_keyword: generatedRaw.primary_keyword || primaryKeyword,
       search_intent: generatedRaw.search_intent || searchIntent,
     };
-    const contentId = cellText(row, hotHeader, "Content ID") || buildContentId({ seoUrl: finalSeoUrl, docToken: "", sourceTitle: generated.source_title || sourceTitle });
+    const previousContentId = cellText(row, hotHeader, "Content ID");
+    const legacyContentId = previousContentId || buildContentId({ seoUrl: finalSeoUrl, docToken: "", sourceTitle: generated.source_title || sourceTitle });
 
     const revisedDoc = await createRevisedDoc({
-      title: `SEO Blog Ready - ${generated.source_title || sourceTitle || contentId}`,
+      title: `SEO Blog Ready - ${generated.source_title || sourceTitle || legacyContentId}`,
       markdown: buildPublishReadyMarkdown(generated),
     });
+    const contentId = buildContentId({ seoUrl: "", docToken: revisedDoc.token, sourceTitle: generated.source_title || sourceTitle });
 
-    const seoRowNumber = nextSeoRowForContent(contentId);
+    const seoRowNumber = nextSeoRowForContent(contentId, legacyContentId);
     const existingSeoStatus = await currentSeoStatus(seoRowNumber);
     const seoFields = {
       "Date": currentDate,
@@ -240,7 +251,14 @@ async function processHotRow(rowNumber, row) {
 
 async function processRow(rowNumber, row) {
   const docRef = extractDocRef(cell(row, blogHeader, "Blog Doc URL"));
-  const blogDocCellValue = docRef.url || docRef.title || cellText(row, blogHeader, "Blog Doc URL");
+  const contentIdFromSheet = cellText(row, blogHeader, "Content ID");
+  if (!docRef.url && !docRef.token && !docRef.localPath && contentIdFromSheet) {
+    const contentDocRef = extractDocRef(contentIdFromSheet);
+    docRef.url = contentDocRef.url;
+    docRef.token = contentDocRef.token;
+    docRef.localPath = contentDocRef.localPath;
+  }
+  const blogDocCellValue = docRef.url || docRef.localPath || docRef.title || cellText(row, blogHeader, "Blog Doc URL");
   const primaryKeyword = cellInlineText(row, blogHeader, "Primary Keyword");
   const searchIntent = cellInlineText(row, blogHeader, "Search Intent");
   const reviewNote = cellText(row, blogHeader, "Review note");
@@ -248,7 +266,7 @@ async function processRow(rowNumber, row) {
   const currentDate = existingDate || todayShanghai();
   const issues = [];
 
-  if (!docRef.url && !docRef.token) issues.push("缺少 Blog Doc URL");
+  if (!docRef.url && !docRef.token && !docRef.localPath) issues.push("缺少 Blog Doc URL");
   if (!primaryKeyword) issues.push("缺少 Primary Keyword");
   if (!searchIntent) issues.push("缺少 Search Intent");
 
@@ -259,19 +277,19 @@ async function processRow(rowNumber, row) {
   let documentId = "";
   let fetchIssue = "";
 
-  if (docRef.url || docRef.token) {
+  if (docRef.url || docRef.token || docRef.localPath) {
     try {
-      const fetched = await fetchDocMarkdown(docRef.url || docRef.token);
+      const fetched = await fetchDocMarkdown(docRef.localPath || docRef.token || docRef.url);
       sourceMarkdown = fetched.content;
       documentId = fetched.documentId;
       sourceTitle = firstMarkdownHeading(sourceMarkdown) || sourceTitle;
     } catch (error) {
-      fetchIssue = "文档读取失败";
+      fetchIssue = `文档读取失败: ${shortErrorMessage(error)}`;
       issues.push(fetchIssue);
     }
   }
 
-  const contentId = cellText(row, blogHeader, "Content ID") || buildContentId({ seoUrl: "", docToken: docRef.token || documentId, sourceTitle });
+  const contentId = contentIdFromSheet || buildContentId({ seoUrl: "", docToken: docRef.token || documentId, sourceTitle });
   const seoRowNumber = nextSeoRowForContent(contentId);
   const existingSeoStatus = await currentSeoStatus(seoRowNumber);
   const validationStatus = issues.length === 0 ? "校验通过" : "校验失败";
@@ -500,6 +518,28 @@ function columnName(index) {
 }
 
 async function fetchDocMarkdown(doc) {
+  const localDoc = await fetchLocalMarkdown(doc);
+  if (localDoc) return localDoc;
+
+  if (isDirectMarkdownUrl(doc)) {
+    const response = await fetch(doc);
+    if (!response.ok) {
+      throw new Error(`Markdown URL 返回 ${response.status}`);
+    }
+    return {
+      content: await response.text(),
+      documentId: buildLocalDocumentId(doc),
+    };
+  }
+
+  const inspected = await inspectLarkResource(doc);
+  if (inspected?.type === "file" && inspected.token) {
+    return downloadDriveMarkdown(inspected);
+  }
+  if (["doc", "docx"].includes(inspected?.type) && inspected.token) {
+    doc = inspected.token;
+  }
+
   const result = await runJson([
     "docs",
     "+fetch",
@@ -518,6 +558,159 @@ async function fetchDocMarkdown(doc) {
     content: result.data?.document?.content || "",
     documentId: result.data?.document?.document_id || "",
   };
+}
+
+async function inspectLarkResource(doc) {
+  const raw = extractLinkCandidate(doc);
+  if (!raw) return null;
+
+  const args = [
+    "drive",
+    "+inspect",
+    "--as",
+    "user",
+    "--url",
+    raw,
+    "--format",
+    "json",
+  ];
+  if (!/^https?:\/\//i.test(raw)) {
+    args.push("--type", "wiki");
+  }
+
+  try {
+    const result = await runJson(args);
+    return result.data || null;
+  } catch {
+    return null;
+  }
+}
+
+async function downloadDriveMarkdown(resource) {
+  const token = String(resource?.token || "");
+  if (!token) throw new Error("Drive file token 为空");
+
+  const title = String(resource?.title || `${token}.md`);
+  const fileName = sanitizeFileName(title.endsWith(".md") || title.endsWith(".markdown") ? title : `${title}.md`);
+  const output = path.join("tmp", `seo-workflow-drive-${randomUUID()}-${fileName}`);
+  fs.mkdirSync(path.join(rootDir, "tmp"), { recursive: true });
+
+  const result = await runJson([
+    "drive",
+    "+download",
+    "--as",
+    "user",
+    "--file-token",
+    token,
+    "--output",
+    output,
+    "--overwrite",
+    "--format",
+    "json",
+  ]);
+  const savedPath = result.data?.saved_path || path.resolve(rootDir, output);
+  return {
+    content: fs.readFileSync(savedPath, "utf8"),
+    documentId: token,
+  };
+}
+
+async function fetchLocalMarkdown(doc) {
+  const candidates = localMarkdownCandidates(doc);
+  for (const candidate of candidates) {
+    try {
+      const stat = fs.statSync(candidate);
+      if (!stat.isFile()) continue;
+      return {
+        content: fs.readFileSync(candidate, "utf8"),
+        documentId: buildLocalDocumentId(candidate),
+      };
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  const ref = localMarkdownRef(doc);
+  if (ref) {
+    throw new Error(`本地 Markdown 文件不存在: ${ref}`);
+  }
+
+  return null;
+}
+
+function localMarkdownCandidates(input) {
+  const ref = localMarkdownRef(input);
+  if (!ref) return [];
+
+  const decoded = safeDecodeURIComponent(ref);
+  const withoutLeadingSlash = decoded.replace(/^\/+/, "");
+  const baseName = path.basename(withoutLeadingSlash);
+  const candidates = [
+    decoded,
+    path.resolve(rootDir, withoutLeadingSlash),
+    path.resolve(rootDir, "blogdoc", baseName),
+    path.resolve(rootDir, "blogdocs", baseName),
+    path.resolve(rootDir, "docs", baseName),
+    path.resolve(rootDir, "tmp", baseName),
+    path.resolve(path.dirname(rootDir), "blogdoc", baseName),
+    path.resolve(path.dirname(rootDir), "blogdocs", baseName),
+  ];
+
+  return [...new Set(candidates)];
+}
+
+function localMarkdownRef(input) {
+  const raw = extractLinkCandidate(input);
+  if (!raw) return "";
+  if (isDirectMarkdownUrl(raw)) {
+    try {
+      return new URL(raw).pathname;
+    } catch {
+      return "";
+    }
+  }
+  if (/^https?:\/\//i.test(raw)) return "";
+  if (/\.(?:md|markdown)(?:$|[?#])/i.test(raw)) return raw.replace(/[?#].*$/, "");
+  return "";
+}
+
+function isDirectMarkdownUrl(input) {
+  const raw = extractLinkCandidate(input);
+  if (!/^https?:\/\//i.test(raw)) return false;
+  try {
+    const parsed = new URL(raw);
+    return /\.(?:md|markdown)$/i.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function extractLinkCandidate(input) {
+  const raw = text(input);
+  if (!raw) return "";
+  const markdownLink = raw.match(/\[[^\]]+\]\(([^)]+)\)/);
+  return (markdownLink?.[1] || raw).trim();
+}
+
+function safeDecodeURIComponent(input) {
+  try {
+    return decodeURIComponent(String(input || ""));
+  } catch {
+    return String(input || "");
+  }
+}
+
+function buildLocalDocumentId(input) {
+  const fileName = path.basename(String(input || ""));
+  return slugify(fileName.replace(/\.(?:md|markdown)$/i, "")) || randomUUID();
+}
+
+function sanitizeFileName(input) {
+  return String(input || "source.md")
+    .replace(/[/:\\?%*"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180) || "source.md";
 }
 
 async function generateSeoPackage({ strategy, sourceMarkdown, sourceTitle, primaryKeyword, searchIntent, reviewNote, seoUrl }) {
@@ -1169,12 +1362,13 @@ function dateOnly(value) {
   return parsed.toISOString().slice(0, 10);
 }
 
-function nextSeoRowForContent(contentId) {
+function nextSeoRowForContent(contentId, fallbackContentId = "") {
   const contentColumn = seoHeader[normalizeHeader("Content ID")];
   if (!contentColumn) return seoRows.length + 1;
+  const ids = [contentId, fallbackContentId].filter(Boolean);
 
   for (let index = 1; index < seoRows.length; index += 1) {
-    if (text(seoRows[index]?.[contentColumn - 1]) === contentId) return index + 1;
+    if (ids.includes(text(seoRows[index]?.[contentColumn - 1]))) return index + 1;
   }
 
   for (let index = 1; index < MAX_ROWS; index += 1) {
@@ -1216,17 +1410,20 @@ function extractDocRef(value) {
   if (Array.isArray(value)) {
     const mention = value.find((item) => item?.link || item?.token);
     const title = value.map((item) => item?.text || "").join("").trim();
+    const link = mention?.link || "";
     return {
-      url: mention?.link || "",
-      token: mention?.token || tokenFromUrl(mention?.link || ""),
+      url: isFetchableRemoteDoc(link) ? link : "",
+      token: mention?.token || tokenFromUrl(link),
+      localPath: localMarkdownRef(link || title),
       title,
     };
   }
 
   const raw = text(value);
   return {
-    url: raw.startsWith("http") ? raw : "",
+    url: isFetchableRemoteDoc(raw) ? raw : "",
     token: tokenFromUrl(raw),
+    localPath: localMarkdownRef(raw),
     title: raw.startsWith("http") ? "" : raw,
   };
 }
@@ -1255,10 +1452,14 @@ function normalizeGeneratedUrl(input) {
   const raw = inlineText(input);
   if (!raw) return "";
 
-  const markdownLink = raw.match(/\[[^\]]+\]\(([^)]+)\)/);
-  const candidate = markdownLink?.[1] || raw;
+  const candidate = extractLinkCandidate(raw);
   const urlMatch = candidate.match(/https?:\/\/[^\s)]+|\/[a-z0-9][^\s)]*/i);
   return (urlMatch?.[0] || candidate).trim();
+}
+
+function isFetchableRemoteDoc(input) {
+  const raw = extractLinkCandidate(input);
+  return /^https?:\/\//i.test(raw) && !isDirectMarkdownUrl(raw);
 }
 
 function slugFromUrl(input) {
@@ -1304,6 +1505,13 @@ function todayShanghai() {
 
 function truncateCell(value) {
   return String(value || "").slice(0, 45000);
+}
+
+function shortErrorMessage(error) {
+  return String(error?.message || error || "未知错误")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 220);
 }
 
 function sourceSnapshotPreview(markdown) {
@@ -1375,6 +1583,7 @@ async function resolveCodexCli() {
   const configured = process.env.CODEX_CLI_BIN || env.CODEX_CLI_BIN;
   if (configured) return path.isAbsolute(configured) ? configured : path.resolve(rootDir, configured);
   const candidates = [
+    "/Applications/ChatGPT.app/Contents/Resources/codex",
     "/Applications/Codex.app/Contents/Resources/codex",
     "codex",
   ];
@@ -1412,7 +1621,22 @@ function readDotEnv(filePath) {
   return values;
 }
 
-function runJson(args) {
+async function runJson(args) {
+  const maxAttempts = 3;
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await runJsonOnce(args);
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableLarkCliError(error) || attempt === maxAttempts) break;
+      await sleep(1500 * attempt);
+    }
+  }
+  throw lastError;
+}
+
+function runJsonOnce(args) {
   return new Promise((resolve, reject) => {
     const child = spawn(larkCli.command, [...larkCli.argsPrefix, ...args], {
       cwd: rootDir,
@@ -1434,12 +1658,36 @@ function runJson(args) {
         return;
       }
       try {
-        resolve(JSON.parse(stdout));
+        resolve(parseCliJson(stdout));
       } catch (error) {
         reject(new Error(`Failed to parse CLI JSON output: ${error.message}\n${stdout}`));
       }
     });
   });
+}
+
+function isRetryableLarkCliError(error) {
+  const message = String(error?.message || error || "");
+  return /type":\s*"network"|subtype":\s*"(timeout|transport)"|i\/o timeout|no such host|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/i.test(message);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseCliJson(stdout) {
+  const output = String(stdout || "").trim();
+  if (!output) throw new Error("empty output");
+
+  try {
+    return JSON.parse(output);
+  } catch {
+    const jsonStart = output
+      .split(/\r?\n/)
+      .findIndex((line) => line.trim().startsWith("{") || line.trim().startsWith("["));
+    if (jsonStart < 0) throw new Error("no JSON object found");
+    return JSON.parse(output.split(/\r?\n/).slice(jsonStart).join("\n"));
+  }
 }
 
 function runCommand(command, args, options = {}) {
