@@ -285,7 +285,7 @@ SEO配置 页面已出现对应内容
 - `Last Source Sync Time`
 - `Last SEO Generated Time`
 - `Blog Doc Token`
-- `Published Blog URL` 不由工作流自动写入，发布后由人工回填线上博客链接
+- `Published Blog URL`，由 `https://v2fun.ai` + `SEO URL` 自动生成
 
 当你已经把字段复制到网站后台后，手动设置：
 
@@ -620,7 +620,7 @@ The workflow writes:
 - `Last Source Sync Time`
 - `Last SEO Generated Time`
 - `Blog Doc Token`
-- `Published Blog URL` is not written by the workflow. Fill it manually after the article is live.
+- `Published Blog URL`, generated from `https://v2fun.ai` + `SEO URL`
 
 After copying fields into your CMS/backend:
 

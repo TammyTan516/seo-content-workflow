@@ -196,6 +196,7 @@ async function processHotRow(rowNumber, row) {
       "Blog Doc URL": revisedDoc.url,
       "Source Title": generated.source_title || sourceTitle,
       "Article Topics": generated.article_topics || inferArticleTopics(generated),
+      "Published Blog URL": publishedBlogUrl(finalSeoUrl),
       "Source Content Snapshot": sourceSnapshotPreview(sourceMarkdown),
       "Last Source Sync Time": new Date().toISOString(),
       "Last SEO Generated Time": new Date().toISOString(),
@@ -211,6 +212,7 @@ async function processHotRow(rowNumber, row) {
         "Keywords": generated.keywords || "",
         "LLM Summary": generated.llm_summary || "",
         "Article Topics": generated.article_topics || inferArticleTopics(generated),
+        "Published Blog URL": publishedBlogUrl(finalSeoUrl),
         "SEO Revised Article": "[Generated. See Blog Doc URL / SEO Revised Doc URL for publish-ready document.]",
         "Publish Format Output": "[Generated. See Blog Doc URL / SEO Revised Doc URL for publish-ready document.]",
       });
@@ -370,6 +372,7 @@ async function processRow(rowNumber, row) {
         "Blog Doc URL": blogDocCellValue,
         "Source Title": generated.source_title || sourceTitle,
         "Article Topics": generated.article_topics || inferArticleTopics(generated),
+        "Published Blog URL": publishedBlogUrl(finalSeoUrl),
         "Source Content Snapshot": sourceSnapshotPreview(sourceMarkdown),
         "Last Source Sync Time": new Date().toISOString(),
         "Last SEO Generated Time": new Date().toISOString(),
@@ -385,6 +388,7 @@ async function processRow(rowNumber, row) {
           "Keywords": generated.keywords || "",
           "LLM Summary": generated.llm_summary || "",
           "Article Topics": generated.article_topics || inferArticleTopics(generated),
+          "Published Blog URL": publishedBlogUrl(finalSeoUrl),
           "SEO Revised Article": "[Generated. See SEO Revised Doc URL after document sync succeeds.]",
           "Publish Format Output": "[Generated. See SEO Revised Doc URL after document sync succeeds.]",
         });
@@ -1464,6 +1468,21 @@ function resolveSeoUrl(generated) {
 
   const slug = generated?.suggested_slug || slugify(generated?.seo_title || generated?.source_title || "");
   return slug ? `/blog/${slug}` : "";
+}
+
+function publishedBlogUrl(seoUrl) {
+  const normalized = normalizeGeneratedUrl(seoUrl);
+  if (!normalized) return "";
+  if (/^https?:\/\//i.test(normalized)) {
+    try {
+      const parsed = new URL(normalized);
+      return `https://v2fun.ai${parsed.pathname}${parsed.search || ""}`;
+    } catch {
+      return normalized;
+    }
+  }
+  const pathName = normalized.startsWith("/") ? normalized : `/${normalized}`;
+  return `https://v2fun.ai${pathName}`;
 }
 
 function normalizeGeneratedUrl(input) {
