@@ -301,8 +301,9 @@ async function processRow(rowNumber, row) {
   }
   if (!searchIntent) issues.push("缺少 Search Intent");
 
-  const contentId = contentIdFromSheet || buildContentId({ seoUrl: "", docToken: docRef.token || documentId, sourceTitle });
-  const seoRowNumber = nextSeoRowForContent(contentId);
+  const sourceContentId = buildContentId({ seoUrl: "", docToken: docRef.token || documentId, sourceTitle });
+  const contentId = sourceContentId || contentIdFromSheet;
+  const seoRowNumber = nextSeoRowForContent(contentId, contentIdFromSheet);
   const existingSeoStatus = await currentSeoStatus(seoRowNumber);
   const validationStatus = issues.length === 0 ? "校验通过" : "校验失败";
   const validationIssues = issues.length === 0 ? "无问题" : issues.join("; ");

@@ -117,6 +117,37 @@ Recommended `Status` dropdown:
 配置失败
 ```
 
+## GEO / Social Posts
+
+Sheet name suggestion: `社媒稿件`
+
+| Column | Header | Maintained by | Notes |
+| --- | --- | --- | --- |
+| A | Content ID | Human | Internal tracking ID or sequence number. |
+| B | 人群画像 | Workflow | Audience persona inferred from the source content. |
+| C | 使用场景 | Workflow | Use-case label inferred from the source content. |
+| D | 搜索意图 | Workflow | Search intent inferred from the source content. |
+| E | Prompt | Human | Original topic, posting angle, or instruction. |
+| F | Blog Doc URL | Human | Required Feishu/Lark document link containing the post/article content. |
+| G | Reviewer | Human | Reviewer mention/name. |
+| H | Content Status | Human / Workflow | Set to `待读取` to start. `Content Staus` is also supported for existing sheets with the typo. |
+| I | Review note | Human | Optional note for review or publishing. |
+| J | 发布平台 | Human | Example: Reddit. |
+| K | 发布分区 | Workflow | Recommended platform section, e.g. subreddit list. |
+| L | 发布连接 | Human | Live post URL after publishing. |
+| M | 是否发布评论 | Human | Whether follow-up comment posting is done. |
+
+Recommended `Content Status` dropdown:
+
+```txt
+待读取
+读取中
+已读取
+重新生成
+读取失败
+已发布
+```
+
 ## SEO Strategy
 
 Sheet name suggestion: `SEO基础策略逻辑`

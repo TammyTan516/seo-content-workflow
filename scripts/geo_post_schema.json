@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "persona",
+    "use_case",
+    "search_intent",
+    "reddit_communities",
+    "reasoning",
+    "confidence"
+  ],
+  "properties": {
+    "persona": {
+      "type": "string"
+    },
+    "use_case": {
+      "type": "string"
+    },
+    "search_intent": {
+      "type": "string"
+    },
+    "reddit_communities": {
+      "type": "string"
+    },
+    "reasoning": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "string"
+    }
+  }
+}

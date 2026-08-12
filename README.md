@@ -16,12 +16,13 @@
 
 ### 项目简介
 
-SEO Content Workflow 是一个面向内容团队的本地自动化项目。它用飞书/Lark 表格作为任务队列和审核台，通过 Codex CLI 或 OpenAI-compatible API 生成中英双语 SEO 内容，并将最终可发布字段同步到统一的 `SEO配置` 页面。
+SEO Content Workflow 是一个面向内容团队的本地自动化项目。它用飞书/Lark 表格作为任务队列和审核台，通过 Codex CLI 或 OpenAI-compatible API 生成中英双语 SEO 内容，并将最终可发布字段同步到统一的 `SEO配置` 页面。它也支持 GEO/社媒发帖前置整理：读取已有稿件后，自动匹配人群画像、使用场景、搜索意图和 Reddit 发布分区建议。
 
-它适合两类内容流程：
+它适合三类内容流程：
 
 - **Blog每日热点稿**：从目标受众、主关键词、搜索意图出发，自动抓取近期行业信息，并生成新的 SEO 文章。
 - **稿件审核**：读取已有飞书文档、Blog 草稿或 PR 稿，进行 SEO 润色和发布格式整理。
+- **社媒稿件**：读取已有稿件内容，自动补全 GEO/社媒发布所需的人群画像、场景、意图和 Reddit 分区建议。
 
 最终产出包括 SEO URL、SEO Title、Meta Description、关键词、LLM Summary、可发布飞书文档链接等。`SEO Revised Doc URL` 会生成一个双语发布包，里面分别包含英文 CMS 正文和中文 CMS 正文，方便团队复制到对应语言的网站后台。
 
@@ -38,6 +39,7 @@ SEO Content Workflow 是一个面向内容团队的本地自动化项目。它�
 | 热点稿生成 | 根据 `Target Audience`、`Primary Keyword`、`Search Intent` 自动生成中英双语 SEO 稿 |
 | 稿件审核润色 | 读取已有飞书文档，输出中英双语 SEO 优化发布文档 |
 | 统一 SEO 配置 | 自动写入 SEO URL、标题、描述、关键词、摘要等字段 |
+| GEO/社媒匹配 | 读取稿件内容，自动建议人群画像、使用场景、搜索意图和 Reddit 社区 |
 | 可重生成 | 对不满意的热点稿或审核稿，可通过状态字段触发重新生成 |
 | 自动文档权限 | 生成的飞书文档可自动设置为链接可编辑，取决于租户策略 |
 | 本地私有配置 | 所有真实 token 和 sheet id 都保存在 `.env` |
@@ -73,6 +75,7 @@ SEO_HOT_SHEET_ID=your_hot_topic_sheet_id
 SEO_BLOG_SHEET_ID=your_manuscript_review_sheet_id
 SEO_CONFIG_SHEET_ID=your_seo_config_sheet_id
 SEO_STRATEGY_SHEET_ID=your_strategy_sheet_id
+GEO_POST_SHEET_ID=your_geo_post_sheet_id
 ```
 
 如果你是从旧版本升级，且运行时报 `Missing required config SEO_HOT_SHEET_ID`，说明本地 `.env` 少了新增的热点稿 sheet id。请从 `.env.example` 复制这一行到自己的 `.env`，并填入你自己的 `Blog每日热点稿` sheet id：
@@ -166,6 +169,7 @@ AI_MODEL=your-model-name
 | `稿件审核` | 对已有稿件做 SEO 润色 | 已有 Blog、PR 稿、同事草稿 |
 | `SEO配置` | 汇总最终可发布字段 | 复制到 CMS 或网站后台 |
 | `SEO基础策略逻辑` | 维护全局 SEO 策略 | 品牌表述、关键词规则、产品边界 |
+| `社媒稿件` | 匹配 GEO/社媒发布信息 | 已有文章，需要发布到 Reddit 等社区 |
 | `使用规则` | 团队内部 SOP | 告诉团队如何填写、审核、结束 case |
 
 详细字段模板见 [docs/feishu-sheet-template.md](docs/feishu-sheet-template.md)。
@@ -193,6 +197,52 @@ npm run workflow
 - `复制到 CMS - 中文正文 Only`：复制到中文站正文
 - `CONFIG TABLE - English CMS Fields`：英文站 SEO 配置
 - `配置表 - 中文 CMS 字段`：中文站 SEO 配置
+
+---
+
+### 社媒稿件 / GEO 发帖匹配
+
+运行社媒匹配工作流：
+
+```bash
+npm run geo
+```
+
+只跑某一行：
+
+```bash
+npm run geo -- --geo-row=2
+```
+
+人工填写：
+
+| 字段 | 类型 | 是否必填 | 说明 |
+| --- | --- | --- | --- |
+| `Content ID` | 文本/编号 | 建议填写 | 内部追踪 ID |
+| `Prompt` | 文本 | 建议填写 | 该帖子的原始选题或发布意图 |
+| `Blog Doc URL` | 飞书文档链接 | 必填 | 需要读取的帖子/文章正文 |
+| `Reviewer` | 人员或文本 | 建议填写 | 审核人 |
+| `Content Status` / `Content Staus` | 下拉 | 必填 | 设置为 `待读取` 后开始处理；设置为 `重新生成` 可重跑 |
+| `发布平台` | 下拉 | 必填 | 例如 Reddit |
+| `发布连接` | 文本 | 发布后填写 | 实际帖子 URL |
+| `是否发布评论` | 下拉 | 发布后维护 | 是否已完成评论/跟帖动作 |
+
+系统输出：
+
+- `人群画像`
+- `使用场景`
+- `搜索意图`
+- `发布分区`，例如 Reddit subreddit 建议
+
+状态流转：
+
+```txt
+待读取 -> 读取中 -> 已读取
+重新生成 -> 读取中 -> 已读取
+读取失败 -> 人工检查 Blog Doc URL / 权限 / 内容后改回待读取
+```
+
+注意：`发布分区` 是建议，不等于自动发帖。发布前仍需人工检查对应社区规则、广告限制、标题语气和账号安全。
 
 ---
 
@@ -375,12 +425,13 @@ rg -n "feishu.cn|larksuite|SEO_SPREADSHEET_TOKEN|your_company_domain" .
 
 ### Overview
 
-SEO Content Workflow is a local automation project for content teams. It uses Feishu/Lark spreadsheets as the workflow queue and review surface, then uses Codex CLI or an OpenAI-compatible API to generate bilingual English/Chinese SEO content and sync publishing fields into a central SEO configuration sheet.
+SEO Content Workflow is a local automation project for content teams. It uses Feishu/Lark spreadsheets as the workflow queue and review surface, then uses Codex CLI or an OpenAI-compatible API to generate bilingual English/Chinese SEO content and sync publishing fields into a central SEO configuration sheet. It also supports a GEO/social posting workflow that reads existing article content and suggests audience personas, use cases, search intent, and Reddit communities.
 
-It supports two main workflows:
+It supports three main workflows:
 
 - **Daily hot-topic articles**: generate new SEO posts from a target audience, primary keyword, and search intent.
 - **Manuscript review**: rewrite existing Feishu/Lark documents, blog drafts, or PR articles into SEO-ready content.
+- **Social posts**: read existing content and fill GEO/social posting fields such as persona, use case, intent, and subreddit suggestions.
 
 The final output includes SEO URL, SEO title, meta description, keywords, LLM summary, and a publish-ready Feishu/Lark document link. `SEO Revised Doc URL` contains a bilingual publishing package with separate English and Chinese CMS body sections.
 
@@ -397,6 +448,7 @@ The final output includes SEO URL, SEO title, meta description, keywords, LLM su
 | Hot-topic generation | Create new bilingual SEO articles from audience, keyword, and intent |
 | Manuscript optimization | Rewrite existing drafts into bilingual SEO-ready publishing packages |
 | Central SEO config | Sync SEO URL, title, description, keywords, and summary |
+| GEO/social matching | Suggest audience persona, use case, search intent, and Reddit communities from article content |
 | Regeneration flow | Regenerate rejected articles through spreadsheet status fields |
 | Document permission update | Optionally make generated docs editable by anyone with the link |
 | Local private config | Keep all real tokens and sheet IDs in `.env` |
@@ -432,6 +484,7 @@ SEO_HOT_SHEET_ID=your_hot_topic_sheet_id
 SEO_BLOG_SHEET_ID=your_manuscript_review_sheet_id
 SEO_CONFIG_SHEET_ID=your_seo_config_sheet_id
 SEO_STRATEGY_SHEET_ID=your_strategy_sheet_id
+GEO_POST_SHEET_ID=your_geo_post_sheet_id
 ```
 
 If you are upgrading from an older version and see `Missing required config SEO_HOT_SHEET_ID`, your local `.env` is missing the newly added hot-topic sheet id. Copy this line from `.env.example` into your own `.env` and fill it with your `Blog每日热点稿` sheet id:
@@ -520,6 +573,7 @@ AI_MODEL=your-model-name
 | `稿件审核` | Optimize existing drafts | Existing blog, PR article, or teammate draft |
 | `SEO配置` | Collect final publishing fields | Copy into CMS/backend |
 | `SEO基础策略逻辑` | Store global SEO strategy | Brand rules, keyword rules, product boundaries |
+| `社媒稿件` | Match GEO/social posting fields | Existing article needs Reddit/community publishing |
 | `使用规则` | Team SOP | Explain how to operate the workflow |
 
 Detailed headers are listed in [docs/feishu-sheet-template.md](docs/feishu-sheet-template.md).
@@ -545,6 +599,52 @@ The generated `SEO Revised Doc URL` is a bilingual publishing package:
 - `复制到 CMS - 中文正文 Only`: paste into the Chinese CMS page
 - `CONFIG TABLE - English CMS Fields`: English SEO metadata
 - `配置表 - 中文 CMS 字段`: Chinese SEO metadata
+
+---
+
+### GEO / Social Posting
+
+Run the social matching workflow:
+
+```bash
+npm run geo
+```
+
+Run one row only:
+
+```bash
+npm run geo -- --geo-row=2
+```
+
+Human-maintained fields:
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `Content ID` | Text/number | Recommended | Internal tracking ID |
+| `Prompt` | Text | Recommended | Original topic or posting intent |
+| `Blog Doc URL` | Feishu/Lark doc link | Yes | Source post/article content |
+| `Reviewer` | Mention/name | Recommended | Reviewer |
+| `Content Status` / `Content Staus` | Dropdown | Yes | Set to `待读取` to start; set to `重新生成` to rerun |
+| `发布平台` | Dropdown | Yes | Example: Reddit |
+| `发布连接` | Text | After publishing | Final live post URL |
+| `是否发布评论` | Dropdown | After publishing | Whether follow-up comment posting is done |
+
+System output:
+
+- `人群画像`
+- `使用场景`
+- `搜索意图`
+- `发布分区`, such as suggested Reddit subreddits
+
+Status flow:
+
+```txt
+待读取 -> 读取中 -> 已读取
+重新生成 -> 读取中 -> 已读取
+读取失败 -> check Blog Doc URL / permissions / content, then set back to 待读取
+```
+
+Note: `发布分区` is a recommendation, not automatic posting. Review subreddit rules, self-promotion policies, title tone, and account safety before publishing.
 
 ---
 

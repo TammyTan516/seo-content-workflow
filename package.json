@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "workflow": "node scripts/seo_workflow.mjs",
+    "geo": "node scripts/geo_post_workflow.mjs",
     "reset:row2": "node scripts/seo_workflow.mjs --reset-row=2",
     "setup:key": "node scripts/setup_openai_key.mjs",
     "test:ai": "node scripts/test_ai_connection.mjs",
