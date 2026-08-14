@@ -52,7 +52,7 @@ Sheet name suggestion: `稿件审核`
 | D | Primary Keyword | Human | Required. |
 | E | Search Intent | Human / Workflow | Optional. Dropdown recommended; workflow infers and writes this back when blank. |
 | F | Reviewer | Human | Reviewer mention/name. |
-| G | Review note | Human | Optional editing instruction. |
+| G | Review note | Human / Workflow trigger | Optional editing instruction. Set to `已配置` to export the English CMS body Markdown from `SEO Revised Doc URL` into `Github`. Set to `重新导出` to overwrite the export. |
 | H | SEO Status | Human / Workflow | Set to `待读取` to start. |
 | I | Article Status | Human / Workflow | Set to `重新生成` to regenerate. |
 | J | Validation Status | Workflow | Validation result. |
@@ -61,6 +61,8 @@ Sheet name suggestion: `稿件审核`
 | M | SEO Revised Doc URL | Workflow | Generated bilingual publish-ready Feishu doc with English and Chinese CMS body sections. |
 | N | SEO Revised Doc Token | Workflow | Generated doc token. |
 | O | Blog Doc Token | Workflow | Source document token. |
+| P | Publish URL | Workflow | Public blog URL from SEO config. |
+| Q | Github | Workflow | English CMS body Markdown extracted from the revised doc. |
 
 Recommended `SEO Status` dropdown:
 

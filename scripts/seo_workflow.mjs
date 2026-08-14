@@ -40,9 +40,14 @@ const strategy = parseStrategy(strategyRows);
 
 const resetRowArg = process.argv.find((arg) => arg.startsWith("--reset-row="));
 const onlyBlogRowArg = process.argv.find((arg) => arg.startsWith("--blog-row="));
+const onlyGithubRowArg = process.argv.find((arg) => arg.startsWith("--github-row="));
 const onlyBlogRowNumber = onlyBlogRowArg ? Number(onlyBlogRowArg.split("=")[1]) : 0;
+const onlyGithubRowNumber = onlyGithubRowArg ? Number(onlyGithubRowArg.split("=")[1]) : 0;
 if (onlyBlogRowArg && (!Number.isInteger(onlyBlogRowNumber) || onlyBlogRowNumber < 2)) {
   throw new Error("--blog-row must be a row number >= 2");
+}
+if (onlyGithubRowArg && (!Number.isInteger(onlyGithubRowNumber) || onlyGithubRowNumber < 2)) {
+  throw new Error("--github-row must be a row number >= 2");
 }
 
 if (resetRowArg) {
@@ -62,7 +67,7 @@ if (resetRowArg) {
 
 const updates = [];
 
-if (!onlyBlogRowNumber) {
+if (!onlyBlogRowNumber && !onlyGithubRowNumber) {
   for (let index = 1; index < hotRows.length; index += 1) {
     const rowNumber = index + 1;
     const row = hotRows[index] || [];
@@ -79,20 +84,33 @@ if (!onlyBlogRowNumber) {
   }
 }
 
+if (!onlyGithubRowNumber) {
+  for (let index = 1; index < blogRows.length; index += 1) {
+    const rowNumber = index + 1;
+    const row = blogRows[index] || [];
+    const seoStatus = cellText(row, blogHeader, "SEO Status");
+    const articleStatus = cellText(row, blogHeader, "Article Status");
+
+    if (onlyBlogRowNumber && rowNumber !== onlyBlogRowNumber) continue;
+    if (!onlyBlogRowNumber && seoStatus !== "待读取" && articleStatus !== "重新生成") continue;
+
+    updates.push(await processRow(rowNumber, row));
+  }
+}
+
 for (let index = 1; index < blogRows.length; index += 1) {
   const rowNumber = index + 1;
   const row = blogRows[index] || [];
-  const seoStatus = cellText(row, blogHeader, "SEO Status");
-  const articleStatus = cellText(row, blogHeader, "Article Status");
 
-  if (onlyBlogRowNumber && rowNumber !== onlyBlogRowNumber) continue;
-  if (!onlyBlogRowNumber && seoStatus !== "待读取" && articleStatus !== "重新生成") continue;
+  if (onlyGithubRowNumber && rowNumber !== onlyGithubRowNumber) continue;
+  if (!onlyGithubRowNumber && onlyBlogRowNumber && rowNumber !== onlyBlogRowNumber) continue;
+  if (!shouldProcessGithubMarkdownExport(row, { force: Boolean(onlyGithubRowNumber) })) continue;
 
-  updates.push(await processRow(rowNumber, row));
+  updates.push(await processGithubMarkdownExport(rowNumber, row));
 }
 
 if (updates.length === 0) {
-  console.log("No rows matched Blog每日热点稿 Status=待评估/不适合 with required inputs, or 稿件审核 SEO Status=待读取 / Article Status=重新生成.");
+  console.log("No rows matched Blog每日热点稿 Status=待评估/不适合 with required inputs, 稿件审核 SEO Status=待读取 / Article Status=重新生成, or 稿件审核 Review note=已配置 with empty Github output. Use --github-row=N to force-export one row.");
 } else {
   console.log(`Processed ${updates.length} row(s):`);
   for (const update of updates) console.log(`- Row ${update.rowNumber}: ${update.summary}`);
@@ -439,6 +457,35 @@ async function processRow(rowNumber, row) {
     rowNumber,
     summary: issues.length ? `${validationStatus}: ${validationIssues}` : "ready for SEO generation",
   };
+}
+
+function shouldProcessGithubMarkdownExport(row, { force = false } = {}) {
+  const reviewNote = cellInlineText(row, blogHeader, "Review note");
+  const revisedDocUrl = cellInlineText(row, blogHeader, "SEO Revised Doc URL");
+  const githubOutput = cellInlineText(row, blogHeader, "Github");
+  const trigger = reviewNote === "已配置" || reviewNote === "重新导出";
+  if (!trigger || !revisedDocUrl) return false;
+  if (force) return true;
+  return reviewNote === "重新导出" || !githubOutput || githubOutput.startsWith("导出失败");
+}
+
+async function processGithubMarkdownExport(rowNumber, row) {
+  try {
+    const docRef = extractDocRef(cell(row, blogHeader, "SEO Revised Doc URL"));
+    const revisedDoc = await fetchDocMarkdown(docRef.url || docRef.token || docRef.localPath || docRef.title);
+    const markdown = extractEnglishCmsMarkdown(revisedDoc.content);
+    await writeField(BLOG_SHEET_ID, blogHeader, rowNumber, "Github", truncateMarkdownCell(markdown));
+    return {
+      rowNumber,
+      summary: "exported English CMS body markdown to Github column",
+    };
+  } catch (error) {
+    await writeField(BLOG_SHEET_ID, blogHeader, rowNumber, "Github", `导出失败：${shortErrorMessage(error)}`);
+    return {
+      rowNumber,
+      summary: `Github markdown export failed: ${shortErrorMessage(error)}`,
+    };
+  }
 }
 
 async function readRange(range) {
@@ -1595,6 +1642,26 @@ function firstMarkdownHeading(markdown) {
   return match?.[1]?.trim() || "";
 }
 
+function extractEnglishCmsMarkdown(markdown) {
+  const source = String(markdown || "")
+    .replace(/<title>[\s\S]*?<\/title>\s*/i, "")
+    .trim();
+  const startMatch = source.match(/^##\s+COPY TO CMS - English Blog Body Only\s*$/im);
+  if (!startMatch || startMatch.index == null) {
+    throw new Error("未找到英文 CMS 正文区块");
+  }
+
+  const afterHeading = source.slice(startMatch.index + startMatch[0].length).trimStart();
+  const stopMatch = afterHeading.match(
+    /^##\s+(复制到 CMS - 中文正文 Only|OPTIONAL SEO SCHEMA|可选 SEO Schema|REFERENCE TABLE|REVIEW TABLE)\b.*$/im,
+  );
+  const section = (stopMatch && stopMatch.index != null ? afterHeading.slice(0, stopMatch.index) : afterHeading).trim();
+  const firstH1 = section.search(/^#\s+/m);
+  const body = firstH1 >= 0 ? section.slice(firstH1).trim() : section;
+  if (!body) throw new Error("英文 CMS 正文区块为空");
+  return body;
+}
+
 function slugify(input) {
   return String(input || "")
     .toLowerCase()
@@ -1615,6 +1682,12 @@ function todayShanghai() {
 
 function truncateCell(value) {
   return String(value || "").slice(0, 45000);
+}
+
+function truncateMarkdownCell(value) {
+  const raw = String(value || "");
+  if (raw.length <= 45000) return raw;
+  return `${raw.slice(0, 44800).trimEnd()}\n\n<!-- Truncated by SEO workflow because the Feishu cell content exceeded 45,000 characters. -->`;
 }
 
 function shortErrorMessage(error) {

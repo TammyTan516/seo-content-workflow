@@ -298,7 +298,7 @@ npm run geo -- --geo-row=2
 | `Primary Keyword` | 文本 | 必填 | 主关键词 |
 | `Search Intent` | 下拉 | 可选 | 搜索意图；为空时工作流会根据标题/正文自动匹配并回填 |
 | `Reviewer` | 人员或文本 | 建议填写 | 审核人 |
-| `Review note` | 文本 | 可选 | 特殊修改要求 |
+| `Review note` | 文本 | 可选 | 特殊修改要求；填 `已配置` 会触发英文正文 Markdown 导出到 `Github` |
 | `SEO Status` | 下拉 | 必填 | 设置为 `待读取` 后开始处理 |
 
 如果需要重新生成：
@@ -315,6 +315,29 @@ Article Status = 已通过
 Final Approved = 通过 / 已通过
 SEO Revised Doc URL 已生成
 SEO配置 页面已出现对应内容
+```
+
+GitHub Markdown 导出：
+
+```txt
+Review note = 已配置
+SEO Revised Doc URL 已生成
+Github 为空
+运行 npm run workflow
+```
+
+工作流会读取 `SEO Revised Doc URL`，只截取 `COPY TO CMS - English Blog Body Only` 下的英文正文 Markdown，并写入 `Github` 列。不会导出配置表、中文正文、JSON-LD、来源说明或审核清单。
+
+如果需要重新导出：
+
+```txt
+把 Review note 改成 重新导出，然后重新运行 npm run workflow
+```
+
+只导出某一行，不重新生成文章：
+
+```bash
+npm run workflow -- --github-row=2
 ```
 
 ---
@@ -683,7 +706,7 @@ Human-maintained fields:
 | `Primary Keyword` | Text | Yes | Main SEO keyword |
 | `Search Intent` | Dropdown | Optional | Search intent; if blank, the workflow infers it from the title/body and writes it back |
 | `Reviewer` | Mention/name | Recommended | Reviewer |
-| `Review note` | Text | Optional | Special instructions |
+| `Review note` | Text | Optional | Special instructions; set to `已配置` to export English body Markdown into `Github` |
 | `SEO Status` | Dropdown | Yes | Set to `待读取` to start |
 
 To regenerate:
@@ -700,6 +723,29 @@ Article Status = 已通过
 Final Approved = 通过 / 已通过 / Approved
 SEO Revised Doc URL is filled
 SEO配置 has the matching row
+```
+
+GitHub Markdown export:
+
+```txt
+Review note = 已配置
+SEO Revised Doc URL is filled
+Github is empty
+Run npm run workflow
+```
+
+The workflow reads `SEO Revised Doc URL`, extracts only the `COPY TO CMS - English Blog Body Only` Markdown section, and writes it into the `Github` column. Config tables, Chinese body, JSON-LD, source notes, and checklists are excluded.
+
+To export again:
+
+```txt
+Set Review note = 重新导出, then run npm run workflow again.
+```
+
+Export one row only without regenerating the article:
+
+```bash
+npm run workflow -- --github-row=2
 ```
 
 ---
