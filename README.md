@@ -298,7 +298,7 @@ npm run geo -- --geo-row=2
 | `Primary Keyword` | 文本 | 必填 | 主关键词 |
 | `Search Intent` | 下拉 | 可选 | 搜索意图；为空时工作流会根据标题/正文自动匹配并回填 |
 | `Reviewer` | 人员或文本 | 建议填写 | 审核人 |
-| `Review note` | 文本 | 可选 | 特殊修改要求；填 `已配置` 会触发英文正文 Markdown 导出到 `Github` |
+| `Review note` | 文本 | 可选 | 特殊修改要求；填 `已配置` 会触发英文正文 Markdown 文档导出到 `Github` |
 | `SEO Status` | 下拉 | 必填 | 设置为 `待读取` 后开始处理 |
 
 如果需要重新生成：
@@ -317,16 +317,16 @@ SEO Revised Doc URL 已生成
 SEO配置 页面已出现对应内容
 ```
 
-GitHub Markdown 导出：
+GitHub Markdown 文档导出：
 
 ```txt
 Review note = 已配置
 SEO Revised Doc URL 已生成
-Github 为空
+Github 为空，或里面还是旧版粘贴的 `# Markdown 正文`
 运行 npm run workflow
 ```
 
-工作流会读取 `SEO Revised Doc URL`，只截取 `COPY TO CMS - English Blog Body Only` 下的英文正文 Markdown，并写入 `Github` 列。不会导出配置表、中文正文、JSON-LD、来源说明或审核清单。
+工作流会读取 `SEO Revised Doc URL`，只截取 `COPY TO CMS - English Blog Body Only` 下的英文正文 Markdown，新建一个可下载 Markdown 的飞书文档，并把文档链接写入 `Github` 列。不会导出配置表、中文正文、JSON-LD、来源说明或审核清单。
 
 如果需要重新导出：
 
@@ -706,7 +706,7 @@ Human-maintained fields:
 | `Primary Keyword` | Text | Yes | Main SEO keyword |
 | `Search Intent` | Dropdown | Optional | Search intent; if blank, the workflow infers it from the title/body and writes it back |
 | `Reviewer` | Mention/name | Recommended | Reviewer |
-| `Review note` | Text | Optional | Special instructions; set to `已配置` to export English body Markdown into `Github` |
+| `Review note` | Text | Optional | Special instructions; set to `已配置` to export an English body Markdown document into `Github` |
 | `SEO Status` | Dropdown | Yes | Set to `待读取` to start |
 
 To regenerate:
@@ -725,16 +725,16 @@ SEO Revised Doc URL is filled
 SEO配置 has the matching row
 ```
 
-GitHub Markdown export:
+GitHub Markdown document export:
 
 ```txt
 Review note = 已配置
 SEO Revised Doc URL is filled
-Github is empty
+Github is empty, or still contains the old pasted `# Markdown body`
 Run npm run workflow
 ```
 
-The workflow reads `SEO Revised Doc URL`, extracts only the `COPY TO CMS - English Blog Body Only` Markdown section, and writes it into the `Github` column. Config tables, Chinese body, JSON-LD, source notes, and checklists are excluded.
+The workflow reads `SEO Revised Doc URL`, extracts only the `COPY TO CMS - English Blog Body Only` Markdown section, creates a Feishu/Lark document that can be downloaded as Markdown, and writes that document link into the `Github` column. Config tables, Chinese body, JSON-LD, source notes, and checklists are excluded.
 
 To export again:
 

@@ -466,7 +466,7 @@ function shouldProcessGithubMarkdownExport(row, { force = false } = {}) {
   const trigger = reviewNote === "已配置" || reviewNote === "重新导出";
   if (!trigger || !revisedDocUrl) return false;
   if (force) return true;
-  return reviewNote === "重新导出" || !githubOutput || githubOutput.startsWith("导出失败");
+  return reviewNote === "重新导出" || !githubOutput || githubOutput.startsWith("导出失败") || githubOutput.startsWith("#");
 }
 
 async function processGithubMarkdownExport(rowNumber, row) {
@@ -474,10 +474,15 @@ async function processGithubMarkdownExport(rowNumber, row) {
     const docRef = extractDocRef(cell(row, blogHeader, "SEO Revised Doc URL"));
     const revisedDoc = await fetchDocMarkdown(docRef.url || docRef.token || docRef.localPath || docRef.title);
     const markdown = extractEnglishCmsMarkdown(revisedDoc.content);
-    await writeField(BLOG_SHEET_ID, blogHeader, rowNumber, "Github", truncateMarkdownCell(markdown));
+    const title = firstMarkdownHeading(markdown) || firstMarkdownHeading(revisedDoc.content) || `Row ${rowNumber}`;
+    const markdownDoc = await createMarkdownExportDoc({
+      title: `GitHub Markdown - ${title}`,
+      markdown,
+    });
+    await writeField(BLOG_SHEET_ID, blogHeader, rowNumber, "Github", markdownDoc.url);
     return {
       rowNumber,
-      summary: "exported English CMS body markdown to Github column",
+      summary: "created English Markdown export doc and wrote link to Github column",
     };
   } catch (error) {
     await writeField(BLOG_SHEET_ID, blogHeader, rowNumber, "Github", `导出失败：${shortErrorMessage(error)}`);
@@ -988,11 +993,23 @@ function requiredConfig(key) {
 
 async function createRevisedDoc({ title, markdown }) {
   const content = `# ${title.replace(/^#+\s*/, "")}\n\n${markdown.replace(/^#\s+.+\n+/, "")}`;
+  return createMarkdownDoc({ content });
+}
+
+async function createMarkdownExportDoc({ title, markdown }) {
+  const body = String(markdown || "").trim();
+  const content = body.startsWith("# ")
+    ? body
+    : `# ${title.replace(/^#+\s*/, "")}\n\n${body}`;
+  return createMarkdownDoc({ content });
+}
+
+async function createMarkdownDoc({ content }) {
   const tmpDir = path.join(rootDir, "tmp", `seo-workflow-doc-${randomUUID()}`);
   fs.mkdirSync(tmpDir, { recursive: true });
   const contentPath = path.join(tmpDir, "revised.md");
   const contentPathForCli = path.relative(rootDir, contentPath);
-  fs.writeFileSync(contentPath, content, "utf8");
+  fs.writeFileSync(contentPath, String(content || "").trim(), "utf8");
   const args = [
     "docs",
     "+create",
@@ -1682,12 +1699,6 @@ function todayShanghai() {
 
 function truncateCell(value) {
   return String(value || "").slice(0, 45000);
-}
-
-function truncateMarkdownCell(value) {
-  const raw = String(value || "");
-  if (raw.length <= 45000) return raw;
-  return `${raw.slice(0, 44800).trimEnd()}\n\n<!-- Truncated by SEO workflow because the Feishu cell content exceeded 45,000 characters. -->`;
 }
 
 function shortErrorMessage(error) {
