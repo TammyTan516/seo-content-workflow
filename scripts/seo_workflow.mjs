@@ -41,6 +41,7 @@ const strategy = parseStrategy(strategyRows);
 const resetRowArg = process.argv.find((arg) => arg.startsWith("--reset-row="));
 const onlyBlogRowArg = process.argv.find((arg) => arg.startsWith("--blog-row="));
 const onlyGithubRowArg = process.argv.find((arg) => arg.startsWith("--github-row="));
+const backfillSeoConfigOnly = process.argv.includes("--backfill-seo-config");
 const onlyBlogRowNumber = onlyBlogRowArg ? Number(onlyBlogRowArg.split("=")[1]) : 0;
 const onlyGithubRowNumber = onlyGithubRowArg ? Number(onlyGithubRowArg.split("=")[1]) : 0;
 if (onlyBlogRowArg && (!Number.isInteger(onlyBlogRowNumber) || onlyBlogRowNumber < 2)) {
@@ -67,7 +68,7 @@ if (resetRowArg) {
 
 const updates = [];
 
-if (!onlyBlogRowNumber && !onlyGithubRowNumber) {
+if (!backfillSeoConfigOnly && !onlyBlogRowNumber && !onlyGithubRowNumber) {
   for (let index = 1; index < hotRows.length; index += 1) {
     const rowNumber = index + 1;
     const row = hotRows[index] || [];
@@ -84,7 +85,7 @@ if (!onlyBlogRowNumber && !onlyGithubRowNumber) {
   }
 }
 
-if (!onlyGithubRowNumber) {
+if (!backfillSeoConfigOnly && !onlyGithubRowNumber) {
   for (let index = 1; index < blogRows.length; index += 1) {
     const rowNumber = index + 1;
     const row = blogRows[index] || [];
@@ -98,19 +99,31 @@ if (!onlyGithubRowNumber) {
   }
 }
 
-for (let index = 1; index < blogRows.length; index += 1) {
-  const rowNumber = index + 1;
-  const row = blogRows[index] || [];
+if (!backfillSeoConfigOnly) {
+  for (let index = 1; index < blogRows.length; index += 1) {
+    const rowNumber = index + 1;
+    const row = blogRows[index] || [];
 
-  if (onlyGithubRowNumber && rowNumber !== onlyGithubRowNumber) continue;
-  if (!onlyGithubRowNumber && onlyBlogRowNumber && rowNumber !== onlyBlogRowNumber) continue;
-  if (!shouldProcessGithubMarkdownExport(row, { force: Boolean(onlyGithubRowNumber) })) continue;
+    if (onlyGithubRowNumber && rowNumber !== onlyGithubRowNumber) continue;
+    if (!onlyGithubRowNumber && onlyBlogRowNumber && rowNumber !== onlyBlogRowNumber) continue;
+    if (!shouldProcessGithubMarkdownExport(row, { force: Boolean(onlyGithubRowNumber) })) continue;
 
-  updates.push(await processGithubMarkdownExport(rowNumber, row));
+    updates.push(await processGithubMarkdownExport(rowNumber, row));
+  }
+}
+
+if (!onlyBlogRowNumber && !onlyGithubRowNumber) {
+  for (let index = 1; index < seoRows.length; index += 1) {
+    const rowNumber = index + 1;
+    const row = seoRows[index] || [];
+    if (!shouldBackfillSeoConfig(row)) continue;
+
+    updates.push(await backfillSeoConfigRow(rowNumber, row));
+  }
 }
 
 if (updates.length === 0) {
-  console.log("No rows matched Blog每日热点稿 Status=待评估/不适合 with required inputs, 稿件审核 SEO Status=待读取 / Article Status=重新生成, or 稿件审核 Review note=已配置 with empty Github output. Use --github-row=N to force-export one row.");
+  console.log("No rows matched Blog每日热点稿 Status=待评估/不适合 with required inputs, 稿件审核 SEO Status=待读取 / Article Status=重新生成, 稿件审核 Review note=已配置 with empty Github output, or SEO配置 rows with missing Article Topics / Published Blog URL. Use --github-row=N to force-export one row, or --backfill-seo-config to only backfill SEO配置.");
 } else {
   console.log(`Processed ${updates.length} row(s):`);
   for (const update of updates) console.log(`- Row ${update.rowNumber}: ${update.summary}`);
@@ -494,6 +507,27 @@ async function processGithubMarkdownExport(rowNumber, row) {
 }
 
 async function readRange(range) {
+  const { sheetId, cellRange } = splitSheetRange(range);
+  try {
+    const result = await runJson([
+      "sheets",
+      "+cells-get",
+      "--as",
+      "user",
+      "--spreadsheet-token",
+      SPREADSHEET_TOKEN,
+      "--sheet-id",
+      sheetId,
+      "--range",
+      cellRange,
+      "--max-chars",
+      "20000000",
+    ]);
+    return (result.data?.ranges?.[0]?.cells || []).map((row) => row.map(cellFromLarkCell));
+  } catch (error) {
+    if (!isLegacyLarkCliFallbackError(error)) throw error;
+  }
+
   const result = await runJson([
     "sheets",
     "+read",
@@ -508,6 +542,27 @@ async function readRange(range) {
 }
 
 async function writeRange(range, values) {
+  const { sheetId, cellRange } = splitSheetRange(range);
+  try {
+    await runJson([
+      "sheets",
+      "+cells-set",
+      "--as",
+      "user",
+      "--spreadsheet-token",
+      SPREADSHEET_TOKEN,
+      "--sheet-id",
+      sheetId,
+      "--range",
+      cellRange,
+      "--cells",
+      JSON.stringify(values.map((row) => row.map(cellToLarkCell))),
+    ]);
+    return;
+  } catch (error) {
+    if (!isLegacyLarkCliFallbackError(error)) throw error;
+  }
+
   await runJson([
     "sheets",
     "+write",
@@ -547,6 +602,43 @@ async function currentSeoStatus(rowNumber) {
   }
 
   return cellText(seoRows[rowNumber - 1] || [], seoHeader, "Status");
+}
+
+function shouldBackfillSeoConfig(row) {
+  const seoUrl = cellInlineText(row, seoHeader, "SEO URL");
+  if (!seoUrl) return false;
+
+  const articleTopics = cellInlineText(row, seoHeader, "Article Topics");
+  const publishedBlogUrlValue = cellInlineText(row, seoHeader, "Published Blog URL");
+  return !articleTopics || !publishedBlogUrlValue;
+}
+
+async function backfillSeoConfigRow(rowNumber, row) {
+  const seoUrl = cellInlineText(row, seoHeader, "SEO URL");
+  const fields = {};
+
+  if (!cellInlineText(row, seoHeader, "Article Topics")) {
+    fields["Article Topics"] = inferArticleTopics({
+      source_title: cellInlineText(row, seoHeader, "Source Title"),
+      seo_title: cellInlineText(row, seoHeader, "SEO Title"),
+      primary_keyword: cellInlineText(row, seoHeader, "Keywords"),
+      keywords: cellInlineText(row, seoHeader, "Keywords"),
+      secondary_keywords: cellInlineText(row, seoHeader, "Secondary Keywords"),
+      llm_summary: cellInlineText(row, seoHeader, "LLM Summary"),
+    });
+  }
+
+  if (!cellInlineText(row, seoHeader, "Published Blog URL")) {
+    fields["Published Blog URL"] = publishedBlogUrl(seoUrl);
+  }
+
+  await writeFields(SEO_SHEET_ID, seoHeader, rowNumber, fields);
+  updateLocalSeoRow(rowNumber, fields);
+
+  return {
+    rowNumber,
+    summary: `backfilled SEO配置 ${Object.keys(fields).join(", ")}`,
+  };
 }
 
 function headerMap(headers) {
@@ -1753,11 +1845,41 @@ function normalizeValidationIssues(value) {
 function text(value) {
   if (value == null) return "";
   if (Array.isArray(value)) return value.map((item) => item?.text || "").join("").trim();
+  if (typeof value === "object") return text(value.rich_text || value.value || "");
   return String(value).trim();
 }
 
 function inlineText(value) {
   return text(value).replace(/\s+/g, " ").trim();
+}
+
+function splitSheetRange(range) {
+  const [sheetId, ...rest] = String(range || "").split("!");
+  const cellRange = rest.join("!");
+  if (!sheetId || !cellRange) {
+    throw new Error(`Invalid sheet range: ${range}`);
+  }
+  return { sheetId, cellRange };
+}
+
+function cellFromLarkCell(cellValue) {
+  if (!cellValue) return "";
+  if (Array.isArray(cellValue.rich_text) && cellValue.rich_text.length > 0) {
+    return cellValue.rich_text;
+  }
+  return cellValue.value ?? "";
+}
+
+function cellToLarkCell(value) {
+  if (Array.isArray(value)) {
+    return { rich_text: value };
+  }
+  return { value: value == null ? "" : String(value) };
+}
+
+function isLegacyLarkCliFallbackError(error) {
+  const message = String(error?.message || error || "");
+  return /unknown subcommand "\\+(cells-get|cells-set|read|write)"|unknown flag: --sheet-id|unknown flag: --cells/i.test(message);
 }
 
 async function resolveLarkCli() {
